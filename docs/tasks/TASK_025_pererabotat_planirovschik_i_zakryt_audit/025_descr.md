@@ -121,7 +121,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Связанная задача:** [TASK_007 — Довести первый релиз планировщика до цельного приложения](../TASK_007_dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya/007_descr.md)
 - **Связанная задача:** [TASK_024 — Провести полный аудит кода и масштабируемости планировщика](../TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md)
-- **Связанная задача:** [TASK_026 — Опубликовать планировщик в репозитории GitHub](../TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md)
+- **Связанная задача:** [TASK_026 — Опубликовать планировщик в удалённом репозитории](../TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md)
 - **Созданное или обновлённое знание:** [Аудит качества и масштабируемости планировщика](../../knowledge/audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Созданное или обновлённое знание:** [Карта кода планировщика](../../knowledge/karta_koda_planirovschika.md)
 <!-- AUTO:PAGE_LINKS:END -->
