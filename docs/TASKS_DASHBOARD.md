@@ -43,7 +43,7 @@ updated: 2026-09-11
 | [TASK_023](tasks/TASK_023_ispravit_nemedlennoe_otobrazhenie_blokov_avtoplana/023_descr.md) — Исправить немедленное отображение блоков автоплана | `root` | Исправить немедленное отображение блоков автоплана | `done` | 2026-09-11 |
 | [TASK_024](tasks/TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md) — Провести полный аудит кода и масштабируемости планировщика | `root` | Провести полный аудит кода и масштабируемости планировщика | `done` | 2026-09-11 |
 | [TASK_025](tasks/TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md) — Переработать планировщик и закрыть аудит | `root` | Переработать планировщик и закрыть аудит | `active` | 2026-09-11 |
-| [TASK_026](tasks/TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md) — Опубликовать планировщик в удалённом репозитории | `root` | Опубликовать планировщик в ветках MVP и main, исключив пользовательскую базу данных | `active` | 2026-09-11 |
+| [TASK_026](tasks/TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md) — Опубликовать планировщик в удалённом репозитории | `root` | Опубликовать планировщик в ветках MVP и main, исключив пользовательскую базу данных | `done` | 2026-09-11 |
 
 ## Дерево задач
 
@@ -72,7 +72,7 @@ updated: 2026-09-11
 - [TASK_023](tasks/TASK_023_ispravit_nemedlennoe_otobrazhenie_blokov_avtoplana/023_descr.md) — Исправить немедленное отображение блоков автоплана (`root`, `done`)
 - [TASK_024](tasks/TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md) — Провести полный аудит кода и масштабируемости планировщика (`root`, `done`)
 - [TASK_025](tasks/TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md) — Переработать планировщик и закрыть аудит (`root`, `active`)
-- [TASK_026](tasks/TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md) — Опубликовать планировщик в удалённом репозитории (`root`, `active`)
+- [TASK_026](tasks/TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md) — Опубликовать планировщик в удалённом репозитории (`root`, `done`)
 
 ## Дополнительные связи
 

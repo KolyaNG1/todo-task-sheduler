@@ -43,7 +43,6 @@ updated: 2026-09-11
 | [TASK_006](tasks/TASK_006_realizovat_frontend_i_vypolnit_pervyy_zapusk/006_descr.md) — Реализовать фронтенд и выполнить первый запуск | `root` | Создать самостоятельный первый срез фронтенда по дизайн-системе Stitch, связать его с API и подтвердить локальный запуск. | `active` |
 | [TASK_007](tasks/TASK_007_dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya/007_descr.md) — Довести первый релиз планировщика до цельного приложения | `root` | Довести локальный однопользовательский релиз до цельного сценария: задачи, недельный план, справочники, фактическое время, итоги, уведомления и история. | `active` |
 | [TASK_025](tasks/TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md) — Переработать планировщик и закрыть аудит | `root` | Переработать планировщик и закрыть аудит | `active` |
-| [TASK_026](tasks/TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md) — Опубликовать планировщик в удалённом репозитории | `root` | Опубликовать планировщик в ветках MVP и main, исключив пользовательскую базу данных | `active` |
 
 ## Последние завершённые задачи
 
