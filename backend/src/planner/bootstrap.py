@@ -28,12 +28,12 @@ class Container:
         self._normalize_legacy_datetimes()
         with self.session_factory.begin() as session:
             PlannerService(session).initialize_workspace()
-        self.artifacts.write_manifest(application_version="0.3.0", schema_revision="0005", extra={"utc_normalized_at": datetime.now(UTC).isoformat()})
+        self.artifacts.write_manifest(application_version="0.3.0", schema_revision="0006", extra={"utc_normalized_at": datetime.now(UTC).isoformat()})
 
     def _apply_compatibility_migrations(self) -> None:
         """Дополняет локальную SQLite обратно совместимо и с резервной копией."""
         required_columns = {
-            "tasks": {"repeat_rule", "color", "goal_id", "goal_position"},
+            "tasks": {"repeat_rule", "color", "goal_id", "goal_position", "parent_task_id", "child_position"},
             "schedule_blocks": {"planner_run_id", "planner_proposal_id", "completed_at", "skipped_at"},
             "work_sessions": {"direction_id"},
         }
@@ -45,7 +45,7 @@ class Container:
                     actual = {row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")}
                     missing = missing or not columns.issubset(actual)
         if missing:
-            self.artifacts.backup_database(reason="before-schema-0005")
+            self.artifacts.backup_database(reason="before-schema-0006")
         with self.engine.begin() as connection:
             # Новые таблицы create_all добавляет на чистой базе. Для старой базы
             # создаём их явно, а недостающие столбцы добавляем без удаления строк.
@@ -56,6 +56,8 @@ class Container:
                     "color": "VARCHAR(9)",
                     "goal_id": "VARCHAR(36)",
                     "goal_position": "INTEGER NOT NULL DEFAULT 0",
+                    "parent_task_id": "VARCHAR(36)",
+                    "child_position": "INTEGER NOT NULL DEFAULT 0",
                 },
                 "schedule_blocks": {
                     "planner_run_id": "VARCHAR(36)",
@@ -70,6 +72,7 @@ class Container:
                 for name, definition in columns.items():
                     if name not in actual:
                         connection.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+            connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_tasks_parent_position ON tasks (parent_task_id, child_position)")
 
     def _normalize_legacy_datetimes(self) -> None:
         """Один раз переводит старые наивные локальные даты в UTC.

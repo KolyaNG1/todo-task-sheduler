@@ -25,6 +25,7 @@ class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=280)
     direction_id: str | None = None
     goal_id: str | None = None
+    parent_task_id: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     label_ids: list[str] = Field(default_factory=list)
     description: str | None = Field(default=None, max_length=10_000)
@@ -42,6 +43,7 @@ class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=280)
     direction_id: str | None = None
     goal_id: str | None = None
+    parent_task_id: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     label_ids: list[str] | None = None
     description: str | None = Field(default=None, max_length=10_000)

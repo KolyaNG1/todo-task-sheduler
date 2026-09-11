@@ -163,3 +163,43 @@ def test_task_created_from_general_endpoint_is_immediately_attached_to_its_goal(
         assert task.status_code == 201
         detail = client.get(f"/api/v1/workspaces/{workspace}/goals/{goal['id']}").json()
         assert [item["id"] for item in detail["tasks"]] == [task.json()["id"]]
+
+
+def test_task_tree_plans_only_leaves_and_keeps_work_intervals_inside_task(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        goal = client.post(f"/api/v1/workspaces/{workspace}/goals", json={"title": "Статья"}).json()
+        project = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Исследование", "goal_id": goal["id"], "estimate_minutes": 120},
+        ).json()
+        checkpoint = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Проверить гипотезу", "parent_task_id": project["id"], "estimate_minutes": 30},
+        ).json()
+        assert checkpoint["goal_id"] == goal["id"]
+        assert checkpoint["parent_task_id"] == project["id"]
+        client.put(f"/api/v1/workspaces/{workspace}/availability/dates/2030-01-07", json={"slots": [{"start_minute": 540, "end_minute": 720}]})
+        parent_block = client.post(
+            f"/api/v1/workspaces/{workspace}/blocks",
+            json={"task_id": project["id"], "start_at": "2030-01-07T06:00:00+00:00", "end_at": "2030-01-07T08:00:00+00:00"},
+        )
+        assert parent_block.status_code == 422
+        leaf_block = client.post(
+            f"/api/v1/workspaces/{workspace}/blocks",
+            json={"task_id": checkpoint["id"], "start_at": "2030-01-07T06:00:00+00:00", "end_at": "2030-01-07T06:30:00+00:00"},
+        )
+        assert leaf_block.status_code == 201
+        assert client.post(f"/api/v1/workspaces/{workspace}/tasks/{checkpoint['id']}/complete", json={}).status_code == 200
+        detail = client.get(f"/api/v1/workspaces/{workspace}/goals/{goal['id']}").json()
+        assert detail["leaf_task_count"] == 1
+        assert detail["progress_percent"] == 100
+        assert client.post(
+            f"/api/v1/workspaces/{workspace}/work-sessions/manual",
+            json={"task_id": checkpoint["id"], "started_at": "2030-01-07T06:00:00+00:00", "ended_at": "2030-01-07T06:20:00+00:00"},
+        ).status_code == 201
+        task_detail = client.get(f"/api/v1/workspaces/{workspace}/tasks/{checkpoint['id']}").json()
+        assert task_detail["sessions"][0]["segments"][0]["elapsed_seconds"] == 20 * 60
+        history = client.get(f"/api/v1/workspaces/{workspace}/work-sessions/by-task").json()["groups"]
+        assert history[0]["task"]["id"] == checkpoint["id"]
+        assert history[0]["sessions"][0]["segments"][0]["elapsed_seconds"] == 20 * 60

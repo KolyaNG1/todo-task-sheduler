@@ -4,7 +4,7 @@ title: "Карта кода планировщика"
 status: active
 updated: 2026-09-11
 summary: "Навигация по файлам, слоям, данным и основным потокам планировщика для быстрого поиска причин ошибок."
-source_tasks: ["TASK_024", "TASK_025"]
+source_tasks: ["TASK_024", "TASK_025", "TASK_027"]
 source_pages: ["../../backend/src/planner/main.py", "../../backend/src/planner/application/services.py", "../../backend/src/planner/domain/planning.py", "../../backend/src/planner/api/router.py", "../../backend/src/planner/api/schemas.py", "../../backend/src/planner/api/presenters.py", "../../backend/src/planner/infrastructure/models.py", "../../frontend/index.html", "../../frontend/app.js", "../../frontend/styles.css"]
 related_knowledge: ["audit_kachestva_i_masshtabiruemosti_planirovschika.md", "plan_refaktoringa_planirovschika.md", "arhitektura_bekenda.md", "informatsionnaya_arkhitektura_interfeysa.md"]
 ---
@@ -86,13 +86,13 @@ backend/api/presenters.py → словарь JSON → браузер → общ�
 | `initialize_workspace`, `get_workspace`, `get_context` | Начальная рабочая область и контекст. |
 | `list/create/get/update/archive_direction` | Направления. |
 | `list/create/get/update/archive_label`, `_get_labels` | Теги и проверка их принадлежности. |
-| `create/get/list/update/transition/complete_task` | Задачи, статусы, завершение и повторение. |
+| `create/get/list/update/transition/complete_task` | Задачи, дерево «родитель → чекпоинты», статусы, завершение и повторение. |
 | `set/default_availability`, `set_date_availability`, `availability_for_date` | Шаблон и исключения доступного времени. |
 | `create/update/archive_fixed_event`, `fixed_events_for_date` | Фиксированное расписание. |
 | `create/update/cancel_block`, `_find_block_conflict` | Ручные блоки расписания и конфликты. |
 | `week_view` | Сборка дней, доступности, событий, блоков, ёмкости и остатка. |
 | `create_plan`, `apply_plan` | Запуск автоплана, предложения и применение выбранных блоков. |
-| методы сессий | Старт, пауза, продолжение и завершение таймера. |
+| методы сессий, `list_tasks_with_sessions` | Старт, пауза, продолжение и завершение таймера; сводка «задача → сессии → интервалы». |
 | уведомления и `daily_report` | Просрочки и показатели дня. |
 
 Файл напрямую знает ORM, поэтому почти любой серверный дефект сейчас проходит
@@ -134,7 +134,8 @@ backend/api/presenters.py → словарь JSON → браузер → общ�
 Workspace
  ├─ Direction ─┬─ Label
  │             └─ Task ── TaskLabel
- │                    ├─ ScheduleBlock
+ │                    ├─ дочерние Task (дерево чекпоинтов)
+ │                    ├─ ScheduleBlock (только у листа)
  │                    └─ WorkSession ── WorkSessionSegment
  ├─ AvailabilityProfile ── AvailabilityProfileSlot
  ├─ AvailabilityOverride ── AvailabilityOverrideSlot
@@ -152,7 +153,9 @@ Workspace
 С версии схемы 0004 добавлены `goals`, `tasks.goal_id`, собственные состояния
 календарного блока и связь блока с предложением автоплана. Схема 0005 добавляет
 `tasks.goal_position`: это единственный источник фиксированного порядка задачи
-внутри цели. Совместимое
+внутри цели. Схема 0006 добавляет `tasks.parent_task_id` и `child_position`:
+они образуют произвольное упорядоченное дерево, в котором календарь принимает
+только конечные узлы. Совместимое
 добавление столбцов и одноразовое исправление старых дат находятся в
 `bootstrap.py`; перед ними автоматически создаётся копия SQLite.
 
@@ -202,6 +205,8 @@ Workspace
 | Конфликт не виден | `_find_block_conflict()` при записи → сохранённый `has_conflict` → изменения доступности/событий → `week_view()`. |
 | Наследование направления не сработало | обработчик направления в форме → `create_task()` → `update_task()` → поля по умолчанию `Direction`. |
 | Сессия или отчёт отстают | методы сессий → открытый `WorkSessionSegment` → `daily_report()` → `renderDailySuccess()`. |
+| Не виден интервал работы в задаче | `list_tasks_with_sessions()` → `/work-sessions/by-task` → `setSessionView()` → `sessionIntervals()`. |
+| Родительская задача попала в план | `_task_has_children()` → `create_block()`/`create_plan()` → поле `is_leaf` в `task_view()` → отключённые действия карточки. |
 | Сервер падает на обычном вводе | журнал uvicorn → `IntegrityError` → уникальные ограничения моделей → обработчик ошибок `main.py`. |
 | Новая база не запускается | `migrations/versions` → `bootstrap.py` → `manifest.json` → фактическая схема SQLite. |
 | Браузер показывает старое исправление | процессы/порты → принудительное обновление → версии `styles.css`/`app.js` → статическая раздача. |
@@ -248,15 +253,19 @@ AUD-001. Сначала нужен отдельный тест на времен
   [TASK_024](../tasks/TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_concl.md).
 - Расхождения фактической и целевой архитектуры объяснены в
   [аудите](audit_kachestva_i_masshtabiruemosti_planirovschika.md).
+- Дерево задач, история по задачам и обновление интерфейса подтверждены в
+  [TASK_027](../tasks/TASK_027_rasshirit_zadachi_i_istoriyu_raboty_planirovschika/027_concl.md).
 
 ## Автоматические связи
 
 <!-- AUTO:PAGE_LINKS:START -->
 - **Задача-основание:** [TASK_024 — Провести полный аудит кода и масштабируемости планировщика](../tasks/TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md)
 - **Задача-основание:** [TASK_025 — Переработать планировщик и закрыть аудит](../tasks/TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
+- **Задача-основание:** [TASK_027 — Расширить задачи и историю работы планировщика](../tasks/TASK_027_rasshirit_zadachi_i_istoriyu_raboty_planirovschika/027_descr.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [План поэтапной переработки планировщика](plan_refaktoringa_planirovschika.md)
 - **Связанная страница решения:** [DEC_004 — Поэтапная модульная переработка планировщика](../decisions/DECISION_004_poetapnaya_modulnaya_pererabotka_planirovschika.md)
+- **Связанная страница решения:** [DEC_005 — Дерево задач и единый источник фактического времени](../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Связанное знание:** [Архитектура бэкенда планировщика](arhitektura_bekenda.md)
 - **Связанное знание:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанное знание:** [Информационная архитектура интерфейса планировщика](informatsionnaya_arkhitektura_interfeysa.md)
@@ -266,3 +275,5 @@ AUD-001. Сначала нужен отдельный тест на времен
 ## История актуализации
 
 - 2026-09-10 — создано задачей `TASK_024`.
+- 2026-09-11 — дополнено задачей `TASK_027`: дерево задач, история сессий и
+  карточки целей.

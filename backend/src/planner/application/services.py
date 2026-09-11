@@ -262,6 +262,7 @@ class PlannerService:
                 selectinload(Goal.tasks).selectinload(Task.goal),
                 selectinload(Goal.tasks).selectinload(Task.blocks),
                 selectinload(Goal.tasks).selectinload(Task.labels).selectinload(TaskLabel.label),
+                selectinload(Goal.tasks).selectinload(Task.children),
             )
             .where(Goal.id == goal_id)
         )
@@ -313,11 +314,16 @@ class PlannerService:
             raise ValidationError("Одна или несколько задач не найдены")
         by_id = {task.id: task for task in tasks}
         requested = set(task_ids)
+        # Метод управляет только верхним уровнем цели. Дочерние чекпоинты
+        # наследуют цель через своего родителя и не должны отцепляться при
+        # перестановке корневых проектов.
         for task in list(goal.tasks):
-            if task.id not in requested:
+            if task.parent_task_id is None and task.id not in requested:
                 task.goal_id, task.goal_position, task.version = None, 0, task.version + 1
         for position, task_id in enumerate(task_ids, start=1):
             task = by_id[task_id]
+            if task.parent_task_id is not None:
+                raise ValidationError("В порядок цели можно добавить только задачу верхнего уровня")
             task.goal_id, task.goal_position, task.version = goal.id, position, task.version + 1
             if task.direction_id is None and goal.direction_id:
                 task.direction_id = goal.direction_id
@@ -330,13 +336,38 @@ class PlannerService:
         self.session.expire(goal, ["tasks"])
         return self.get_goal(context, goal.id)
 
-    def create_task(self, context: RequestContext, *, title: str, direction_id: str | None = None, goal_id: str | None = None, color: str | None = None, label_ids: list[str] | None = None, description: str | None = None, deadline_at: datetime | None = None, priority: int | None = None, estimate_minutes: int | None = None, can_split: bool = False, min_block_minutes: int = 30, preferred_block_minutes: int = 120, earliest_start_at: datetime | None = None, repeat_rule: str = "NONE") -> Task:
+    def _parent_task(self, context: RequestContext, parent_task_id: str | None, *, task_id: str | None = None) -> Task | None:
+        """Возвращает допустимого родителя и не даёт замкнуть дерево."""
+        if not parent_task_id:
+            return None
+        parent = self.get_task(context, parent_task_id)
+        if parent.id == task_id:
+            raise ValidationError("Задача не может быть собственным родителем")
+        visited = {task_id} if task_id else set()
+        current: Task | None = parent
+        while current:
+            if current.id in visited:
+                raise ValidationError("Нельзя поместить задачу внутрь собственного потомка")
+            visited.add(current.id)
+            current = self.get_task(context, current.parent_task_id) if current.parent_task_id else None
+        return parent
+
+    def _task_has_children(self, context: RequestContext, task_id: str) -> bool:
+        return self.session.scalar(
+            select(Task.id).where(Task.workspace_id == context.workspace_id, Task.parent_task_id == task_id, Task.deleted_at.is_(None)).limit(1)
+        ) is not None
+
+    def create_task(self, context: RequestContext, *, title: str, direction_id: str | None = None, goal_id: str | None = None, parent_task_id: str | None = None, color: str | None = None, label_ids: list[str] | None = None, description: str | None = None, deadline_at: datetime | None = None, priority: int | None = None, estimate_minutes: int | None = None, can_split: bool = False, min_block_minutes: int = 30, preferred_block_minutes: int = 120, earliest_start_at: datetime | None = None, repeat_rule: str = "NONE") -> Task:
         if not title.strip():
             raise ValidationError("Название задачи не может быть пустым")
+        parent = self._parent_task(context, parent_task_id)
+        if parent and goal_id and parent.goal_id and goal_id != parent.goal_id:
+            raise ValidationError("Чекпоинт и его родитель должны принадлежать одной цели")
+        goal_id = parent.goal_id if parent and parent.goal_id else goal_id
         goal = self.get_goal(context, goal_id) if goal_id else None
-        direction_id = direction_id or (goal.direction_id if goal else None)
+        direction_id = direction_id or (parent.direction_id if parent else None) or (goal.direction_id if goal else None)
         direction = self.get_direction(context, direction_id) if direction_id else None
-        resolved_priority = priority if priority is not None else (direction.default_priority if direction else 3)
+        resolved_priority = priority if priority is not None else (parent.priority if parent else (direction.default_priority if direction else 3))
         resolved_estimate = estimate_minutes if estimate_minutes is not None else (direction.default_estimate_minutes if direction and direction.default_estimate_minutes else 30)
         if resolved_priority not in PRIORITIES:
             raise ValidationError("Недопустимое значение важности")
@@ -350,11 +381,13 @@ class PlannerService:
             workspace_id=context.workspace_id,
             direction_id=direction_id,
             goal_id=goal.id if goal else None,
-            goal_position=(self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == goal.id)) or 0) + 1 if goal else 0,
-            color=color or (direction.color if direction else None),
+            parent_task_id=parent.id if parent else None,
+            goal_position=(self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == goal.id, Task.parent_task_id.is_(None))) or 0) + 1 if goal and not parent else 0,
+            child_position=(self.session.scalar(select(func.coalesce(func.max(Task.child_position), 0)).where(Task.parent_task_id == parent.id)) or 0) + 1 if parent else 0,
+            color=color or (parent.color if parent else None) or (direction.color if direction else None),
             title=title.strip(),
             description=description,
-            deadline_at=ensure_utc(deadline_at) if deadline_at else (direction.default_deadline_at if direction else None),
+            deadline_at=ensure_utc(deadline_at) if deadline_at else (parent.deadline_at if parent else (direction.default_deadline_at if direction else None)),
             priority=resolved_priority,
             estimate_minutes=resolved_estimate,
             can_split=can_split,
@@ -372,14 +405,14 @@ class PlannerService:
         return task
 
     def get_task(self, context: RequestContext, task_id: str, *, include_deleted: bool = False) -> Task:
-        task = self.session.scalar(select(Task).options(selectinload(Task.direction), selectinload(Task.goal), selectinload(Task.blocks), selectinload(Task.labels).selectinload(TaskLabel.label)).where(Task.id == task_id))
+        task = self.session.scalar(select(Task).options(selectinload(Task.direction), selectinload(Task.goal), selectinload(Task.parent), selectinload(Task.children), selectinload(Task.blocks), selectinload(Task.labels).selectinload(TaskLabel.label), selectinload(Task.sessions).selectinload(WorkSession.segments)).where(Task.id == task_id))
         if task is None or task.workspace_id != context.workspace_id or (task.deleted_at is not None and not include_deleted):
             raise NotFoundError("Задача не найдена")
         return task
 
     def list_tasks(self, context: RequestContext, *, include_completed: bool = False, include_deleted: bool = False) -> list[Task]:
         """Возвращает задачи рабочей области без смешивания корзины с основным списком."""
-        statement = select(Task).options(selectinload(Task.direction), selectinload(Task.goal), selectinload(Task.blocks), selectinload(Task.labels).selectinload(TaskLabel.label)).where(Task.workspace_id == context.workspace_id)
+        statement = select(Task).options(selectinload(Task.direction), selectinload(Task.goal), selectinload(Task.parent), selectinload(Task.children), selectinload(Task.blocks), selectinload(Task.labels).selectinload(TaskLabel.label)).where(Task.workspace_id == context.workspace_id)
         if not include_deleted:
             statement = statement.where(Task.deleted_at.is_(None))
         if not include_completed:
@@ -388,8 +421,16 @@ class PlannerService:
 
     def update_task(self, context: RequestContext, task_id: str, values: dict[str, object]) -> Task:
         task = self.get_task(context, task_id)
+        parent_id = values.get("parent_task_id", task.parent_task_id)
+        parent = self._parent_task(context, str(parent_id) if parent_id else None, task_id=task.id)
         direction_id = values.get("direction_id", task.direction_id)
         goal_id = values.get("goal_id", task.goal_id)
+        if parent and parent.goal_id:
+            if goal_id and str(goal_id) != parent.goal_id:
+                raise ValidationError("Чекпоинт и его родитель должны принадлежать одной цели")
+            goal_id = parent.goal_id
+        if parent and "direction_id" not in values:
+            direction_id = parent.direction_id or direction_id
         if direction_id:
             self.get_direction(context, str(direction_id))
         if goal_id:
@@ -411,15 +452,22 @@ class PlannerService:
             if key in values:
                 setattr(task, key, values[key])
         task.min_block_minutes = minimum
-        if "direction_id" in values:
+        if "direction_id" in values or ("parent_task_id" in values and parent):
             task.direction_id = str(direction_id) if direction_id else None
         if "goal_id" in values:
             previous_goal_id = task.goal_id
             task.goal_id = str(goal_id) if goal_id else None
-            if goal_id and previous_goal_id != str(goal_id):
-                task.goal_position = (self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == str(goal_id))) or 0) + 1
+            if goal_id and previous_goal_id != str(goal_id) and not parent:
+                task.goal_position = (self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == str(goal_id), Task.parent_task_id.is_(None))) or 0) + 1
             elif not goal_id:
                 task.goal_position = 0
+        if "parent_task_id" in values and task.parent_task_id != (parent.id if parent else None):
+            task.parent_task_id = parent.id if parent else None
+            task.child_position = (self.session.scalar(select(func.coalesce(func.max(Task.child_position), 0)).where(Task.parent_task_id == parent.id)) or 0) + 1 if parent else 0
+            if parent and parent.goal_id:
+                task.goal_id, task.goal_position = parent.goal_id, 0
+            elif not parent and task.goal_id:
+                task.goal_position = (self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == task.goal_id, Task.parent_task_id.is_(None))) or 0) + 1
         workspace = self.get_workspace(context.workspace_id)
         for key in ("deadline_at", "earliest_start_at"):
             if key in values:
@@ -446,6 +494,8 @@ class PlannerService:
 
     def complete_task(self, context: RequestContext, task_id: str, *, actual_minutes: int | None = None) -> Task:
         task = self.get_task(context, task_id)
+        if self._task_has_children(context, task.id):
+            raise ValidationError("Сначала завершите чекпоинты этой задачи")
         task.status = "ACTIVE" if task.repeat_rule == "WEEKLY" else "COMPLETED"
         task.completed_at = self.now
         if task.repeat_rule == "WEEKLY" and task.deadline_at:
@@ -466,6 +516,8 @@ class PlannerService:
 
     def delete_task(self, context: RequestContext, task_id: str) -> None:
         task = self.get_task(context, task_id)
+        if self._task_has_children(context, task.id):
+            raise ConflictError("Сначала переместите или удалите чекпоинты этой задачи")
         task.deleted_at = self.now
         task.status = "ARCHIVED"
         task.version += 1
@@ -630,6 +682,8 @@ class PlannerService:
         task = self.get_task(context, task_id)
         if task.status != "ACTIVE":
             raise ValidationError("Размещать можно только активную задачу")
+        if self._task_has_children(context, task.id):
+            raise ValidationError("В план можно добавлять только конечные чекпоинты")
         workspace = self.get_workspace(context.workspace_id)
         start_at, end_at = ensure_utc(start_at, workspace.timezone), ensure_utc(end_at, workspace.timezone)
         if end_at <= start_at:
@@ -791,6 +845,8 @@ class PlannerService:
         tasks = [self.get_task(context, task_id) for task_id in task_ids]
         if any(task.status != "ACTIVE" for task in tasks):
             raise ValidationError("Планировать можно только активные задачи")
+        if any(self._task_has_children(context, task.id) for task in tasks):
+            raise ValidationError("Для автоплана выберите конечные чекпоинты, а не крупные задачи")
         if not tasks:
             raise ValidationError("Выберите хотя бы одну задачу")
         existing_blocks = self.session.scalars(select(ScheduleBlock).where(ScheduleBlock.workspace_id == context.workspace_id, ScheduleBlock.status == "CONFIRMED", ScheduleBlock.start_at < horizon_end, ScheduleBlock.end_at > horizon_start)).all()
@@ -940,6 +996,30 @@ class PlannerService:
         if end:
             statement = statement.where(WorkSession.started_at < end)
         return list(self.session.scalars(statement.order_by(WorkSession.started_at.desc())))
+
+    def list_tasks_with_sessions(self, context: RequestContext) -> tuple[list[Task], list[WorkSession]]:
+        """Возвращает историю, сгруппированную владельцем-задачей.
+
+        Сессии без задачи не теряются: интерфейс показывает их отдельной
+        группой «Общее время» рядом с задачами.
+        """
+        tasks = list(
+            self.session.scalars(
+                select(Task)
+                .options(selectinload(Task.sessions).selectinload(WorkSession.segments), selectinload(Task.children), selectinload(Task.direction), selectinload(Task.goal), selectinload(Task.blocks), selectinload(Task.labels).selectinload(TaskLabel.label))
+                .where(Task.workspace_id == context.workspace_id, Task.deleted_at.is_(None))
+                .order_by(Task.updated_at.desc())
+            )
+        )
+        unassigned = list(
+            self.session.scalars(
+                select(WorkSession)
+                .options(selectinload(WorkSession.segments), selectinload(WorkSession.task))
+                .where(WorkSession.workspace_id == context.workspace_id, WorkSession.task_id.is_(None))
+                .order_by(WorkSession.started_at.desc())
+            )
+        )
+        return tasks, unassigned
 
     def daily_report(self, context: RequestContext, local_date: date) -> dict[str, object]:
         workspace = self.get_workspace(context.workspace_id)

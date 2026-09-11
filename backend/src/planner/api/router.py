@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
-from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, session_view, task_view
+from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, session_view, task_detail_view, task_view
 from planner.api.schemas import (
     AvailabilityProfileReplace,
     CompletionRequest,
@@ -176,6 +176,11 @@ def complete_goal(workspace_id: str, goal_id: str, service: PlannerService = Dep
 def list_tasks(workspace_id: str, include_completed: bool = False, include_deleted: bool = False, service: PlannerService = Depends(get_service)) -> list[dict]:
     context = context_for(service, workspace_id)
     return [task_view(item, now=service.now) for item in service.list_tasks(context, include_completed=include_completed, include_deleted=include_deleted)]
+
+
+@router.get("/workspaces/{workspace_id}/tasks/{task_id}")
+def get_task(workspace_id: str, task_id: str, service: PlannerService = Depends(get_service)) -> dict:
+    return task_detail_view(service.get_task(context_for(service, workspace_id), task_id), now=service.now)
 
 
 @router.patch("/workspaces/{workspace_id}/tasks/{task_id}")
@@ -363,6 +368,31 @@ def add_manual_session(workspace_id: str, body: ManualSessionCreate, service: Pl
 def list_sessions(workspace_id: str, service: PlannerService = Depends(get_service)) -> list[dict]:
     context = context_for(service, workspace_id)
     return [session_view(item, now=service.now) for item in service.list_sessions(context)]
+
+
+@router.get("/workspaces/{workspace_id}/work-sessions/by-task")
+def list_sessions_by_task(workspace_id: str, service: PlannerService = Depends(get_service)) -> dict:
+    context = context_for(service, workspace_id)
+    tasks, unassigned = service.list_tasks_with_sessions(context)
+    groups = []
+    for task in tasks:
+        sessions = sorted(task.sessions, key=lambda item: stored_utc(item.started_at), reverse=True)
+        if not sessions:
+            continue
+        groups.append({
+            "task": task_view(task, now=service.now),
+            "session_count": len(sessions),
+            "actual_seconds": sum((session_view(item, now=service.now) or {}).get("elapsed_seconds", 0) for item in sessions),
+            "sessions": [session_view(item, now=service.now) for item in sessions],
+        })
+    if unassigned:
+        groups.append({
+            "task": None,
+            "session_count": len(unassigned),
+            "actual_seconds": sum((session_view(item, now=service.now) or {}).get("elapsed_seconds", 0) for item in unassigned),
+            "sessions": [session_view(item, now=service.now) for item in unassigned],
+        })
+    return {"groups": groups}
 
 
 @router.get("/workspaces/{workspace_id}/reports/daily/{local_date}")

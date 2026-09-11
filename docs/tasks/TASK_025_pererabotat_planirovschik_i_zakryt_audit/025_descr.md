@@ -119,6 +119,7 @@ root_record: null
 ## Связи
 
 <!-- AUTO:PAGE_LINKS:START -->
+- **Дочерняя задача:** [TASK_027 — Расширить задачи и историю работы планировщика](../TASK_027_rasshirit_zadachi_i_istoriyu_raboty_planirovschika/027_descr.md)
 - **Связанная задача:** [TASK_007 — Довести первый релиз планировщика до цельного приложения](../TASK_007_dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya/007_descr.md)
 - **Связанная задача:** [TASK_024 — Провести полный аудит кода и масштабируемости планировщика](../TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md)
 - **Связанная задача:** [TASK_026 — Опубликовать планировщик в удалённом репозитории](../TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md)

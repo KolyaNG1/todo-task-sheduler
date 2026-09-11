@@ -113,6 +113,10 @@ class Task(IdentityMixin, Base):
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     direction_id: Mapped[str | None] = mapped_column(ForeignKey("directions.id", ondelete="SET NULL"), nullable=True)
     goal_id: Mapped[str | None] = mapped_column(ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
+    # Самоссылка образует дерево: проект → спринт → конкретный чекпоинт.
+    # Планировать разрешается только конечные пункты без потомков.
+    parent_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    child_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Порядок выполнения в рамках одной цели. У задачи может быть только одна
     # цель, поэтому отдельная таблица связи здесь не нужна.
     goal_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -134,6 +138,8 @@ class Task(IdentityMixin, Base):
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     direction: Mapped[Direction | None] = relationship(back_populates="tasks")
     goal: Mapped["Goal | None"] = relationship(back_populates="tasks")
+    parent: Mapped["Task | None"] = relationship(back_populates="children", remote_side="Task.id", foreign_keys=[parent_task_id])
+    children: Mapped[list["Task"]] = relationship(back_populates="parent", foreign_keys=[parent_task_id], order_by="Task.child_position")
     labels: Mapped[list["TaskLabel"]] = relationship(back_populates="task", cascade="all, delete-orphan")
     blocks: Mapped[list["ScheduleBlock"]] = relationship(back_populates="task")
     sessions: Mapped[list["WorkSession"]] = relationship(back_populates="task")
@@ -145,6 +151,7 @@ class Task(IdentityMixin, Base):
         Index("ix_tasks_workspace_status_deadline", "workspace_id", "status", "deadline_at"),
         Index("ix_tasks_goal", "goal_id"),
         Index("ix_tasks_goal_position", "goal_id", "goal_position"),
+        Index("ix_tasks_parent_position", "parent_task_id", "child_position"),
     )
 
 
