@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Личный планировщик недели" />
+    <title>Планировщик недели</title>
+    <link rel="icon" type="image/png" href="assets/palm-avatar.png?v=1" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="navigation" aria-label="Главная навигация">
+        <a class="brand" href="#plan" aria-label="Планировщик, главная">
+          <span class="brand-mark"><img src="assets/palm-avatar.png" alt="Пальма" /></span><span>План</span>
+        </a>
+        <button class="panel-toggle" id="toggle-nav-panel" title="Скрыть панель навигации" aria-label="Скрыть панель навигации">▥</button>
+        <nav>
+          <button class="nav-item active" data-section="plan"><span>▦</span> План</button>
+          <button class="nav-item" data-section="tasks"><span>✓</span> Задачи</button>
+          <button class="nav-item" data-section="directions"><span>▤</span> Направления</button>
+          <button class="nav-item" data-section="goals"><span>◎</span> Цели</button>
+          <button class="nav-item" data-section="results"><span>◷</span> Итоги</button>
+          <button class="nav-item" data-section="settings"><span>⚙</span> Настройки</button>
+        </nav>
+        <div class="nav-spacer"></div>
+        <button class="nav-item" id="theme-toggle" aria-pressed="false"><span>◐</span> Тёмная тема</button>
+        <button class="nav-item settings-link" id="api-settings"><span>⌁</span> Сервер</button>
+      </aside>
+
+      <aside class="task-panel" aria-label="Активные задачи">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">АКТИВНЫЙ СПИСОК</p>
+            <h1>Задачи <span id="task-count">0</span></h1>
+          </div>
+          <button class="icon-button" id="add-task" title="Добавить задачу" aria-label="Добавить задачу">+</button>
+          <button class="panel-toggle" id="toggle-task-panel" title="Скрыть список задач" aria-label="Скрыть список задач">▥</button>
+        </div>
+        <label class="search"><span>⌕</span><input id="task-search" type="search" placeholder="Найти задачу" /></label>
+        <div class="filters" role="tablist" aria-label="Фильтр задач">
+          <button class="filter active" data-filter="all">Все</button>
+          <button class="filter" data-filter="unplanned">Не в плане</button>
+          <button class="filter" data-filter="overdue">Просрочены</button>
+        </div>
+        <label class="task-sort">Сортировать <select id="task-sort"><option value="deadline">по сроку</option><option value="priority">по важности</option></select></label>
+        <div class="task-list" id="task-list" aria-live="polite"></div>
+        <div class="selection-bar" id="selection-bar" hidden>
+          <span id="selected-summary">Выбрано: 0</span>
+          <button class="button primary" id="plan-selected">Запланировать</button>
+          <button class="button ghost" id="clear-selection">Снять</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <div class="panel-reveals" aria-label="Показать скрытые панели">
+          <button class="panel-toggle reveal" id="show-nav-panel" title="Показать навигацию" aria-label="Показать навигацию">▥</button>
+          <button class="panel-toggle reveal" id="show-task-panel" title="Показать задачи" aria-label="Показать задачи">▥</button>
+        </div>
+        <div id="plan-workspace">
+        <header class="week-toolbar">
+          <div class="week-control">
+            <button class="icon-button" id="previous-week" aria-label="Предыдущая неделя">‹</button>
+            <button class="date-title" id="today" title="Перейти к текущей неделе"><span id="week-range">Неделя</span><small>Сегодня</small></button>
+            <button class="icon-button" id="next-week" aria-label="Следующая неделя">›</button>
+          </div>
+          <button class="session-restore" id="session-restore" hidden>Показать рабочую сессию</button>
+          <div class="toolbar-actions">
+            <div class="capacity"><span>СВОБОДНО</span><strong id="week-capacity">—</strong></div>
+            <button class="button secondary" id="edit-worktime">Рабочее время</button>
+            <button class="button secondary" id="record-worktime">Зафиксировать работу</button>
+            <button class="button secondary" id="add-event">+ Событие</button>
+            <button class="button secondary" id="show-plan" hidden>Показать вариант</button>
+            <button class="button primary" id="quick-task">+ Задача</button>
+          </div>
+        </header>
+
+        <section class="daily-success" id="daily-success" aria-live="polite" hidden></section>
+
+        <section class="week-board" aria-label="Недельное расписание">
+          <div class="time-axis" id="time-axis"></div>
+          <div class="week-columns" id="week-columns"></div>
+        </section>
+
+        <section class="planner-review" id="planner-review" hidden aria-live="polite">
+          <div class="review-title"><p class="eyebrow">ПРЕДВАРИТЕЛЬНЫЙ ВАРИАНТ</p><h2>План готов к проверке</h2></div><button class="icon-button compact review-close" id="hide-plan" aria-label="Скрыть вариант плана">×</button>
+          <div class="review-metrics" id="review-metrics"></div>
+          <div class="review-explanations" id="review-explanations"></div>
+          <div class="review-actions"><button class="button ghost" id="discard-plan">Отменить</button><button class="button secondary" id="replan">Пересчитать</button><button class="button primary" id="apply-plan">Подтвердить безопасные</button></div>
+        </section>
+        </div>
+        <section class="page-view" id="page-view" hidden aria-live="polite"></section>
+      </main>
+    </div>
+
+    <div class="session-bar" id="session-bar" hidden>
+      <span class="pulse"></span><span id="session-name">Рабочая сессия</span><strong id="session-time">00:00:00</strong>
+      <button class="button secondary" id="session-pause">Пауза</button><button class="button primary" id="session-finish">Завершить</button><button class="icon-button compact" id="session-hide" aria-label="Скрыть рабочую сессию">×</button>
+    </div>
+    <dialog id="modal" class="modal">
+      <form method="dialog" id="modal-form">
+        <div class="modal-header"><div><p class="eyebrow" id="modal-kicker">ДЕЙСТВИЕ</p><h2 id="modal-title">Заголовок</h2></div><button type="button" class="icon-button" id="modal-close" aria-label="Закрыть">×</button></div>
+        <div id="modal-content"></div>
+        <div class="modal-actions"><button type="button" class="button ghost" id="modal-cancel">Отмена</button><button class="button primary" id="modal-submit" value="default">Сохранить</button></div>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" id="toast-close" aria-label="Закрыть уведомление">×</button></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

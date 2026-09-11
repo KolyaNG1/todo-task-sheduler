@@ -1,0 +1,403 @@
+const DAY_START = 8 * 60;
+const DAY_END = 24 * 60;
+const HEADER_HEIGHT = 68;
+const QUARTER_HEIGHT = 18;
+const state = {
+  apiBase: localStorage.getItem('planner-api') || 'http://127.0.0.1:8000/api/v1', workspace: null,
+  weekStart: monday(new Date()), week: null, tasks: [], directions: [], labels: [], notifications: [], selected: new Set(),
+  filter: 'all', search: '', plan: null, planPanelHidden: false, session: null,
+  sessionBarHidden: localStorage.getItem('planner-session-hidden') === 'true', sessionReceivedAt: 0, timer: null,
+  section: 'plan', report: null, dailyProgress: null, calendarDays: 21, templateSlots: [], goals: [], goalDetail: null, goalTaskIds: [], deletedTasks: [], panelHidden: localStorage.getItem('planner-task-panel-hidden') === 'true', navPanelHidden: localStorage.getItem('planner-nav-panel-hidden') === 'true', taskSort: localStorage.getItem('planner-task-sort') || 'deadline', availabilitySelection: null, dragSource: null,
+  planRevision: 0, pendingBlockMutations: new Map(), refreshTimer: null, loadToken: 0, loadController: null, nowTimer: null,
+};
+const $ = (selector) => document.querySelector(selector);
+const pixelsPerMinute = QUARTER_HEIGHT / 15;
+const priorityValues = [1, 2, 3, 5, 8, 13, 21];
+
+function monday(value) { const date = new Date(value); date.setDate(date.getDate() - ((date.getDay() + 6) % 7)); date.setHours(0, 0, 0, 0); return date; }
+function dateKey(value) { const date = new Date(value); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+function formatMinutes(value) { const hours = Math.floor(value / 60); return `${hours ? `${hours}ч ` : ''}${value % 60}м`; }
+function formatWeek(date) { const end = new Date(date); end.setDate(end.getDate() + 6); const options = { day: 'numeric', month: 'long' }; return `${date.toLocaleDateString('ru-RU', options)} — ${end.toLocaleDateString('ru-RU', options)}`; }
+function localMinute(iso) { const value = new Date(iso); return value.getHours() * 60 + value.getMinutes(); }
+function snapMinute(value) { const start = state.workspace?.visible_day_start ?? DAY_START; const step = state.workspace?.grid_step_minutes ?? 15; return Math.max(start, Math.min(DAY_END - step, Math.round(value / step) * step)); }
+function pixelForMinute(minute) { return HEADER_HEIGHT + (minute - DAY_START) * pixelsPerMinute; }
+function heightForRange(start, end) { return Math.max(QUARTER_HEIGHT - 2, (end - start) * pixelsPerMinute - 2); }
+function colorForTask(task) { return task.color || task.direction?.color || '#356AE6'; }
+function rangeText(start, end) { return `${new Date(start).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}–${new Date(end).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`; }
+function deadlineText(iso) { const value = new Date(iso); return value < new Date() ? 'просрочено' : `до ${value.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`; }
+function taskTitle(id) { return state.tasks.find((task) => task.id === id)?.title || 'Задача'; }
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char])); }
+function toMinutes(value) { const [hours, minutes] = String(value).split(':').map(Number); return hours * 60 + minutes; }
+function timeValue(minutes) { return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`; }
+function formatSeconds(value) { return formatMinutes(Math.round((value || 0) / 60)); }
+
+async function api(path, options = {}) { const response = await fetch(`${state.apiBase}${path}`, { headers: { 'Content-Type':'application/json', ...(options.headers || {}) }, ...options }); if (response.status === 204) return null; const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error?.message || `Ошибка сервера: ${response.status}`); return body; }
+async function initialize() { try { const bootstrap = await api('/bootstrap'); state.workspace = bootstrap.workspace; await loadData(); showToast('Планировщик готов'); } catch (error) { showToast(`Не удалось подключиться к серверу. ${error.message}`, true); renderOffline(); } }
+async function loadData() {
+  const token = ++state.loadToken;
+  state.loadController?.abort();
+  state.loadController = new AbortController();
+  const id = state.workspace.id;
+  const signal = state.loadController.signal;
+  try {
+    const [startup, labels, notifications, progress, goals] = await Promise.all([api(`/workspaces/${id}/startup?week_start=${dateKey(state.weekStart)}&days=${state.calendarDays}`, { signal }), api(`/workspaces/${id}/labels`, { signal }), api(`/workspaces/${id}/notifications`, { signal }), api(`/workspaces/${id}/reports/daily/${dateKey(new Date())}`, { signal }), api(`/workspaces/${id}/goals?include_completed=true`, { signal })]);
+    if (token !== state.loadToken) return;
+    reconcilePendingBlockMutations(startup.week);
+    state.week = startup.week; state.tasks = startup.tasks; state.directions = startup.directions; state.labels = labels; state.notifications = notifications; state.goals = goals; state.session = startup.active_session; state.templateSlots = startup.default_availability || []; state.dailyProgress = progress;
+    render();
+  } catch (error) {
+    if (error.name !== 'AbortError') throw error;
+  }
+}
+async function refreshPlanData() {
+  const revisionAtRequest = state.planRevision;
+  const id = state.workspace.id;
+  const startup = await api(`/workspaces/${id}/startup?week_start=${dateKey(state.weekStart)}&days=${state.calendarDays}`);
+  if (revisionAtRequest !== state.planRevision) return;
+  reconcilePendingBlockMutations(startup.week);
+  state.week = startup.week; state.tasks = startup.tasks; state.directions = startup.directions; state.session = startup.active_session; state.templateSlots = startup.default_availability || []; render();
+  if (state.pendingBlockMutations.size) scheduleBackgroundRefresh(700);
+}
+function scheduleBackgroundRefresh(delay = 350) {
+  clearTimeout(state.refreshTimer);
+  state.refreshTimer = setTimeout(() => refreshPlanData().catch((error) => showToast(`Не удалось синхронизировать план: ${error.message}`, true)), delay);
+}
+function mergeBlockIntoWeek(week, block) {
+  const day = week?.days.find((item) => item.date === dateKey(block.start_at)); if (!day) return;
+  const index = day.blocks.findIndex((item) => item.id === block.id); if (index >= 0) day.blocks[index] = block; else day.blocks.push(block);
+  day.blocks.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+}
+function mergeBlocks(blocks, keepUntilConfirmed = false) {
+  for (const block of blocks) {
+    mergeBlockIntoWeek(state.week, block);
+    if (keepUntilConfirmed) state.pendingBlockMutations.set(block.id, { kind:'upsert', block });
+  }
+  if (keepUntilConfirmed) state.planRevision += 1;
+}
+function removeBlockLocally(blockId, keepUntilConfirmed = false) {
+  state.week?.days.forEach((day) => { day.blocks = day.blocks.filter((block) => block.id !== blockId); });
+  if (keepUntilConfirmed) { state.pendingBlockMutations.set(blockId, { kind:'remove' }); state.planRevision += 1; }
+}
+function reconcilePendingBlockMutations(week) {
+  for (const [blockId, mutation] of state.pendingBlockMutations) {
+    const serverBlock = week.days.flatMap((day) => day.blocks).find((block) => block.id === blockId);
+    if (mutation.kind === 'upsert') {
+      if (serverBlock && serverBlock.version >= mutation.block.version && serverBlock.start_at === mutation.block.start_at && serverBlock.end_at === mutation.block.end_at && serverBlock.status === mutation.block.status) state.pendingBlockMutations.delete(blockId);
+      else mergeBlockIntoWeek(week, mutation.block);
+    } else if (!serverBlock) state.pendingBlockMutations.delete(blockId);
+    else week.days.forEach((day) => { day.blocks = day.blocks.filter((block) => block.id !== blockId); });
+  }
+}
+function render() { renderHeader(); renderDailySuccess(); renderTaskPanelVisibility(); renderTasks(); renderWeek(); renderSession(); renderPlan(); renderSection(); }
+function renderHeader() { const first = new Date(`${state.week.days[0].date}T12:00:00`); const last = new Date(`${state.week.days.at(-1).date}T12:00:00`); const options = { day:'numeric', month:'long' }; $('#week-range').textContent = `${first.toLocaleDateString('ru-RU', options)} — ${last.toLocaleDateString('ru-RU', options)}`; const total = state.week.days.reduce((sum, day) => sum + day.capacity_minutes, 0); const free = state.week.days.reduce((sum, day) => sum + day.free_minutes, 0); $('#week-capacity').textContent = `${formatMinutes(free)} / ${formatMinutes(total)}`; }
+function renderDailySuccess() { const root = $('#daily-success'); const progress = state.dailyProgress; if (!progress) { root.hidden = true; return; } const goal = Math.round((progress.worked_percent + progress.planning_percent + (progress.planned_task_count ? Math.min(100, Math.round(progress.completed_count * 100 / progress.planned_task_count)) : 0)) / 3); const taskText = progress.planned_task_count ? `${progress.completed_count} из ${progress.planned_task_count}` : `${progress.completed_count}`; root.hidden = false; root.innerHTML = `<div class="success-head"><div><span class="success-emoji">${goal >= 75 ? '🔥' : goal >= 40 ? '🌱' : '✨'}</span><strong>Ритм дня: ${goal}%</strong><small>маленькие шаги складываются в результат</small></div><span class="success-score">${goal}/100</span></div><div class="success-metrics"><article><span>⏱️ В работе</span><strong>${progress.worked_percent}%</strong><small>${formatSeconds(progress.actual_task_seconds)} из ${formatSeconds(progress.planned_seconds)}</small><i><b style="width:${progress.worked_percent}%"></b></i></article><article><span>🧩 План заполнен</span><strong>${progress.planning_percent}%</strong><small>${formatSeconds(progress.planned_seconds)} из ${formatSeconds(progress.capacity_seconds)}</small><i><b style="width:${progress.planning_percent}%"></b></i></article><article><span>✅ Задачи</span><strong>${taskText}</strong><small>выполнено сегодня</small><i><b style="width:${progress.planned_task_count ? Math.min(100, Math.round(progress.completed_count * 100 / progress.planned_task_count)) : 0}%"></b></i></article></div>`; }
+function renderTaskPanelVisibility() {
+  const taskVisible = state.section === 'plan' && !state.panelHidden;
+  const navVisible = !state.navPanelHidden;
+  $('.task-panel').hidden = !taskVisible;
+  $('.navigation').hidden = !navVisible;
+  $('.app-shell').classList.toggle('task-collapsed', !taskVisible);
+  $('.app-shell').classList.toggle('nav-collapsed', !navVisible);
+  $('#show-task-panel').hidden = taskVisible || state.section !== 'plan';
+  $('#show-nav-panel').hidden = navVisible;
+  $('#task-sort').value = state.taskSort;
+}
+
+function sortTasks(tasks) {
+  return [...tasks].sort((left, right) => {
+    if (state.taskSort === 'priority') return right.priority - left.priority || Number(Boolean(left.deadline_at)) - Number(Boolean(right.deadline_at)) || left.title.localeCompare(right.title, 'ru');
+    const leftDeadline = left.deadline_at ? new Date(left.deadline_at).getTime() : Number.POSITIVE_INFINITY;
+    const rightDeadline = right.deadline_at ? new Date(right.deadline_at).getTime() : Number.POSITIVE_INFINITY;
+    return leftDeadline - rightDeadline || right.priority - left.priority || left.title.localeCompare(right.title, 'ru');
+  });
+}
+
+function renderTasks() {
+  const tasks = sortTasks(state.tasks.filter((task) => task.status === 'ACTIVE' && task.title.toLowerCase().includes(state.search.toLowerCase()) && (state.filter === 'all' || state.filter === 'unplanned' && task.planning_status === 'UNPLANNED' || state.filter === 'overdue' && task.is_overdue)));
+  $('#task-count').textContent = state.tasks.filter((task) => task.status === 'ACTIVE').length;
+  $('#task-list').innerHTML = tasks.length ? tasks.map((task) => {
+    const canPlan = task.planning_status !== 'PLANNED';
+    return `<article class="task-card ${state.selected.has(task.id) ? 'selected' : ''} ${task.is_overdue ? 'overdue' : ''}" ${canPlan ? `draggable="true" data-drag-task="${task.id}"` : ''} data-task-card="${task.id}">
+      <input class="task-selector" type="checkbox" ${state.selected.has(task.id) ? 'checked' : ''} ${canPlan ? '' : 'disabled'} aria-label="Выбрать ${escapeHtml(task.title)}" />
+      <span class="task-color" style="background:${colorForTask(task)}"></span>
+      <div><div class="task-name">${escapeHtml(task.title)}</div><div class="task-meta ${task.is_overdue ? 'danger' : ''}">${escapeHtml(task.direction?.name || 'Без направления')} · ${task.deadline_at ? deadlineText(task.deadline_at) : 'без срока'}${task.repeat_rule === 'WEEKLY' ? ' · еженедельно' : ''}</div><div class="task-actions"><button class="task-icon" data-start-task="${task.id}" title="Начать" aria-label="Начать ${escapeHtml(task.title)}">▶</button><button class="task-icon" data-action="auto-plan-task" data-id="${task.id}" ${canPlan ? '' : 'disabled'} title="Распределить автоматически" aria-label="Распределить автоматически">◷</button><button class="task-icon" data-action="edit-task" data-id="${task.id}" title="Редактировать" aria-label="Редактировать">✎</button><button class="task-icon task-delete" data-action="delete-task" data-id="${task.id}" title="Удалить задачу" aria-label="Удалить ${escapeHtml(task.title)}">×</button></div></div>
+      <span class="task-duration">${task.planned_minutes}/${task.estimate_minutes}м</span>
+    </article>`;
+  }).join('') : '<div class="empty"><strong>Задач пока нет</strong><p>Добавьте первую задачу — она появится здесь.</p></div>';
+  $('#selection-bar').hidden = state.selected.size === 0; $('#selected-summary').textContent = `Выбрано: ${state.selected.size}`;
+}
+
+function positioned(className, start, end, content, color = '', attrs = '') { return `<div class="${className}" style="top:${pixelForMinute(start) + 1}px;height:${heightForRange(start, end)}px;${color ? `background:${color}` : ''}" ${attrs}>${content}</div>`; }
+function renderWeek() {
+  const timeLabels = [];
+  for (let minute = DAY_START; minute <= DAY_END; minute += 30) {
+    timeLabels.push(`<div class="time-label ${minute === DAY_END ? 'time-label-end' : ''}">${timeValue(minute)}</div>`);
+  }
+  $('#time-axis').innerHTML = timeLabels.join('');
+  const today = dateKey(new Date());
+  $('#week-columns').innerHTML = state.week.days.map((day) => {
+    const availability = day.availability.map((slot) => positioned('availability', localMinute(slot.start_at), localMinute(slot.end_at), `<button type="button" class="availability-action" draggable="false" data-action="remove-availability-slot" data-date="${day.date}" data-start="${localMinute(slot.start_at)}" data-end="${localMinute(slot.end_at)}" aria-label="Удалить свободное время ${rangeText(slot.start_at, slot.end_at)}" title="Удалить свободное время">×</button>`, '', 'data-availability-slot="true"')).join('');
+    const events = day.fixed_events.map((event) => positioned('fixed-event', localMinute(event.start_at), localMinute(event.end_at), `<strong>${escapeHtml(event.title)}</strong><span class="block-time">${rangeText(event.start_at, event.end_at)}</span>`, event.color, `data-fixed-event="${event.id}"`)).join('');
+    const blocks = day.blocks.map((block) => { const completed = block.status === 'COMPLETED'; const actions = completed ? '' : `<button type="button" class="block-action" draggable="false" data-start-task="${block.task_id}" aria-label="Начать ${escapeHtml(block.task_title || 'задачу')}" title="Начать">▶</button><button type="button" class="block-action" draggable="false" data-action="complete-block" data-id="${block.id}" aria-label="Завершить блок" title="Завершить">✓</button>`; return positioned(`schedule-block ${block.has_conflict ? 'conflict' : ''} ${block.is_pinned ? 'pinned' : ''} ${completed ? 'completed' : ''}`, localMinute(block.start_at), localMinute(block.end_at), `<div class="block-actions">${actions}<button type="button" class="block-action" draggable="false" data-action="edit-block" data-id="${block.id}" aria-label="Изменить время" title="Изменить время">✎</button><button type="button" class="block-action" draggable="false" data-action="cancel-block" data-id="${block.id}" aria-label="Убрать из плана" title="Убрать из плана">×</button></div><strong>${completed ? '✓ ' : ''}${escapeHtml(block.task_title || 'Задача')}</strong><span class="block-time">${rangeText(block.start_at, block.end_at)}${completed ? ' · готово' : ''}</span>`, block.task_color || block.direction_color || '#356AE6', `${completed ? '' : 'draggable="true"'} data-schedule-block="${block.id}"`); }).join('');
+    const proposals = state.plan?.proposals.filter((item) => dateKey(item.start_at) === day.date).map((item) => positioned(`proposal-block ${item.has_conflict ? 'conflict' : ''}`, localMinute(item.start_at), localMinute(item.end_at), `<strong>${escapeHtml(taskTitle(item.task_id))}</strong><span class="block-time">предложено</span>`)).join('') || '';
+    const nowLine = day.date === today ? `<span class="now-line" style="top:${pixelForMinute(new Date().getHours() * 60 + new Date().getMinutes())}px"></span>` : '';
+    const label = new Date(`${day.date}T12:00:00`).toLocaleDateString('ru-RU', { weekday:'short', day:'numeric', month:'short' });
+    return `<section class="day-column" data-date="${day.date}"><header class="day-header ${day.date === today ? 'today' : ''}"><strong>${label}</strong><span>${formatMinutes(day.free_minutes)} свободно</span></header>${availability}${events}${blocks}${proposals}${nowLine}</section>`;
+  }).join('');
+  clearInterval(state.nowTimer);
+  state.nowTimer = setInterval(() => { const line = $('.now-line'); if (line) line.style.top = `${pixelForMinute(new Date().getHours() * 60 + new Date().getMinutes())}px`; }, 60_000);
+}
+function renderPlan() { const review = $('#planner-review'); const show = $('#show-plan'); if (!state.plan) { review.hidden = true; show.hidden = true; return; } review.hidden = state.planPanelHidden; show.hidden = !state.planPanelHidden; const conflicts = state.plan.proposals.filter((item) => item.has_conflict).length; const unplanned = Object.values(state.plan.explanation.unplanned_minutes || {}).reduce((sum, item) => sum + item, 0); $('#review-metrics').innerHTML = `<strong>${state.plan.proposals.length}</strong> блоков · <strong>${conflicts}</strong> конфликтов · <strong>${unplanned}м</strong> не размещено`; $('#review-explanations').textContent = Object.values(state.plan.explanation.explanations || {}).slice(0, 2).join(' '); }
+function renderSession() { const bar = $('#session-bar'); const restore = $('#session-restore'); if (!state.session) { bar.hidden = true; restore.hidden = true; clearInterval(state.timer); return; } state.sessionReceivedAt = Date.now(); bar.hidden = state.sessionBarHidden; restore.hidden = !state.sessionBarHidden; $('#session-name').textContent = state.session.task_title || 'Рабочая сессия'; $('#session-pause').textContent = state.session.status === 'RUNNING' ? 'Пауза' : 'Продолжить'; updateTimer(); clearInterval(state.timer); state.timer = setInterval(updateTimer, 1000); }
+function updateTimer() { if (!state.session) return; let seconds = state.session.elapsed_seconds; if (state.session.status === 'RUNNING') seconds += Math.max(0, Math.floor((Date.now() - state.sessionReceivedAt) / 1000)); $('#session-time').textContent = new Date(seconds * 1000).toISOString().slice(11, 19); }
+
+async function openGoalPage(goalId = null) {
+  try {
+    state.goalDetail = goalId ? await api(`/workspaces/${state.workspace.id}/goals/${goalId}`) : { title:'', description:'', direction_id:null, color:'#356AE6', priority:3, deadline_at:null, tasks:[], progress_percent:0, task_count:0, completed_task_count:0 };
+    state.goalTaskIds = state.goalDetail.tasks.map((task) => task.id);
+    state.section = 'goal-detail';
+    renderSection();
+  } catch (error) { showToast(error.message, true); }
+}
+
+function goalTaskForDetail(taskId) { return state.goalDetail?.tasks.find((task) => task.id === taskId) || state.tasks.find((task) => task.id === taskId); }
+
+function renderGoalDetail(view) {
+  const goal = state.goalDetail;
+  if (!goal) { state.section = 'goals'; renderSection(); return; }
+  const orderedTasks = state.goalTaskIds.map(goalTaskForDetail).filter(Boolean);
+  const availableTasks = sortTasks(state.tasks.filter((task) => !state.goalTaskIds.includes(task.id) && task.status !== 'CANCELLED' && task.status !== 'ARCHIVED'));
+  const deadline = goal.deadline_at ? goal.deadline_at.slice(0, 16) : '';
+  view.innerHTML = `<header class="page-header"><div><button class="button ghost" data-action="back-to-goals">← Все цели</button><p class="eyebrow">ЦЕЛЬ И ПОСЛЕДОВАТЕЛЬНОСТЬ</p><h2>${escapeHtml(goal.title || 'Новая цель')}</h2></div><div class="goal-progress"><strong>${goal.progress_percent || 0}%</strong><span>достигнуто</span><i><b style="width:${goal.progress_percent || 0}%"></b></i></div></header><div class="goal-detail-layout"><form id="goal-detail-form" class="settings-card form-grid"><h3>${goal.id ? 'Параметры цели' : 'Создать цель'}</h3><label class="field">Название<input name="title" required value="${escapeHtml(goal.title || '')}" /></label><label class="field">Направление<select name="direction_id"><option value="">Без направления</option>${state.directions.map((item) => `<option value="${item.id}" ${goal.direction_id === item.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label><label class="field">Описание<textarea name="description" rows="5">${escapeHtml(goal.description || '')}</textarea></label><div class="inline-fields"><label class="field">Важность<select name="priority">${priorityValues.map((value) => `<option value="${value}" ${goal.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label class="field">Цвет<input name="color" type="color" value="${goal.color || '#356AE6'}" /></label></div><label class="field">Срок<input name="deadline" type="datetime-local" value="${deadline}" /></label><button class="button primary" type="submit">${goal.id ? 'Сохранить цель и порядок' : 'Создать цель'}</button></form><section class="settings-card goal-sequence"><div><p class="eyebrow">ФИКСИРОВАННЫЙ ПОРЯДОК</p><h3>Задачи цели</h3><p class="muted">Планировщик учитывает порядок сверху вниз как желаемую последовательность работы.</p></div><div class="goal-task-list">${orderedTasks.length ? orderedTasks.map((task, index) => `<article class="goal-task-row"><span class="goal-order">${index + 1}</span><div><strong>${escapeHtml(task.title)}</strong><small>${task.status === 'COMPLETED' ? 'выполнено' : `${task.estimate_minutes} мин · важность ${task.priority}`}</small></div><div class="row-actions"><button class="button ghost" type="button" data-action="goal-task-up" data-id="${task.id}" ${index === 0 ? 'disabled' : ''}>↑</button><button class="button ghost" type="button" data-action="goal-task-down" data-id="${task.id}" ${index === orderedTasks.length - 1 ? 'disabled' : ''}>↓</button><button class="button ghost" type="button" data-action="goal-task-remove" data-id="${task.id}">×</button></div></article>`).join('') : '<div class="empty"><strong>Задач пока нет</strong><p>Добавьте их из списка ниже.</p></div>'}</div><div class="goal-add-task"><select id="goal-task-add"><option value="">Выберите задачу</option>${availableTasks.map((task) => `<option value="${task.id}">${escapeHtml(task.title)} · ${task.estimate_minutes}м</option>`).join('')}</select><button class="button secondary" type="button" data-action="goal-task-add">+ Добавить</button></div></section></div>`;
+  view.querySelectorAll('.goal-task-row .row-actions').forEach((actions, index) => {
+    actions.insertAdjacentHTML('afterbegin', `<button class="button ghost" type="button" data-action="edit-goal-task" data-id="${orderedTasks[index].id}">✎</button>`);
+  });
+  view.querySelector('.goal-add-task').outerHTML = `<form id="goal-new-task-form" class="goal-new-task"><p class="eyebrow">НОВАЯ ЗАДАЧА В ЭТОЙ ЦЕЛИ</p><label class="field">Название<input name="title" required placeholder="Например, разобрать главу" /></label><div class="inline-fields"><label class="field">Оценка, минут<input name="estimate" type="number" min="1" step="1" value="60" required /></label><label class="field">Важность<select name="priority">${priorityValues.map((value) => `<option value="${value}" ${value === 3 ? 'selected' : ''}>${value}</option>`).join('')}</select></label></div><button class="button primary" type="submit">+ Добавить задачу</button></form>`;
+}
+
+async function saveGoalDetail(form) {
+  const fields = new FormData(form);
+  const deadline = fields.get('deadline');
+  const payload = { title:fields.get('title'), direction_id:fields.get('direction_id') || null, description:fields.get('description') || null, color:fields.get('color'), priority:Number(fields.get('priority')), deadline_at:deadline ? new Date(deadline).toISOString() : null };
+  try {
+    let goalId = state.goalDetail.id;
+    if (goalId) await api(`/workspaces/${state.workspace.id}/goals/${goalId}`, { method:'PATCH', body:JSON.stringify(payload) });
+    else { const goal = await api(`/workspaces/${state.workspace.id}/goals`, { method:'POST', body:JSON.stringify(payload) }); goalId = goal.id; }
+    state.goalDetail = await api(`/workspaces/${state.workspace.id}/goals/${goalId}/tasks`, { method:'PUT', body:JSON.stringify({ task_ids:state.goalTaskIds }) });
+    await loadData();
+    state.goalTaskIds = state.goalDetail.tasks.map((task) => task.id);
+    state.section = 'goal-detail';
+    renderSection();
+    showToast('Цель и последовательность сохранены');
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function saveGoalTaskSequence() {
+  if (!state.goalDetail?.id) { showToast('Сначала сохраните саму цель.', true); return; }
+  try {
+    state.goalDetail = await api(`/workspaces/${state.workspace.id}/goals/${state.goalDetail.id}/tasks`, { method:'PUT', body:JSON.stringify({ task_ids:state.goalTaskIds }) });
+    state.goalTaskIds = state.goalDetail.tasks.map((task) => task.id);
+    await loadData();
+    state.section = 'goal-detail';
+    renderSection();
+    showToast('Последовательность задач сохранена');
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function createGoalTask(form) {
+  if (!state.goalDetail?.id) { showToast('Сначала сохраните саму цель.', true); return; }
+  const fields = new FormData(form);
+  const estimate = Number(fields.get('estimate'));
+  try {
+    await api(`/workspaces/${state.workspace.id}/tasks`, { method:'POST', body:JSON.stringify({ title:fields.get('title'), goal_id:state.goalDetail.id, estimate_minutes:estimate, min_block_minutes:Math.min(30, estimate), preferred_block_minutes:estimate, priority:Number(fields.get('priority')), color:state.goalDetail.color || null }) });
+    await loadData();
+    await openGoalPage(state.goalDetail.id);
+    showToast('Задача добавлена в цель');
+  } catch (error) { showToast(error.message, true); }
+}
+
+function renderSection() {
+  const plan = $('#plan-workspace'); const view = $('#page-view'); plan.hidden = state.section !== 'plan'; view.hidden = state.section === 'plan'; renderTaskPanelVisibility(); if (state.section === 'plan') return;
+  const active = state.tasks.filter((item) => item.status === 'ACTIVE');
+  if (state.section === 'goal-detail') { renderGoalDetail(view); return; }
+  if (state.section === 'tasks') {
+    view.innerHTML = `<header class="page-header"><div><p class="eyebrow">ПОЛНЫЙ СПИСОК</p><h2>Все задачи</h2></div><button class="button primary" data-action="new-task">+ Задача</button></header><div class="table-list">${sortTasks(state.tasks).map((task) => `<article class="full-task ${task.is_overdue ? 'overdue' : ''}"><span class="task-color" style="background:${colorForTask(task)}"></span><div><strong>${escapeHtml(task.title)}</strong><p>${task.direction?.name || 'Без направления'} · ${task.deadline_at ? deadlineText(task.deadline_at) : 'без срока'} · важность ${task.priority}${task.repeat_rule === 'WEEKLY' ? ' · повторяется еженедельно' : ''}</p></div><span class="status">${task.status === 'ACTIVE' ? task.planning_status : task.status}</span><div class="row-actions">${task.status === 'ACTIVE' ? `<button class="button ghost" data-action="edit-task" data-id="${task.id}">Изменить</button><button class="button ghost" data-action="start" data-id="${task.id}">Начать</button><button class="button secondary" data-action="complete" data-id="${task.id}">Готово</button>` : `<button class="button secondary" data-action="restore" data-id="${task.id}">Вернуть</button>`}<button class="button ghost" data-action="delete-task" data-id="${task.id}">Удалить</button></div></article>`).join('') || '<div class="empty"><strong>История пуста</strong></div>'}</div>`;
+  } else if (state.section === 'directions') {
+    view.innerHTML = `<header class="page-header"><div><p class="eyebrow">ПРЕДМЕТЫ И ПРОЕКТЫ</p><h2>Направления и теги</h2></div><div><button class="button secondary" data-action="new-label">+ Тег</button><button class="button primary" data-action="new-direction">+ Направление</button></div></header><div class="card-grid">${state.directions.map((item) => { const count = active.filter((task) => task.direction?.id === item.id).length; const tags = state.labels.filter((label) => label.direction_id === item.id); return `<article class="direction-card"><span class="direction-dot" style="background:${item.color}"></span><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.kind)} · ${count} активных задач</p><p>По умолчанию: важность ${item.default_priority}${item.default_estimate_minutes ? `, ${formatMinutes(item.default_estimate_minutes)}` : ''}</p><div class="label-row">${tags.map((tag) => `<span style="background:${tag.color || 'var(--blue-soft)'};color:${tag.color ? '#fff' : 'var(--blue)'}">${escapeHtml(tag.name)}</span>`).join('') || '<small>Тегов нет</small>'}</div><div class="direction-actions"><button class="button ghost" data-action="edit-direction" data-id="${item.id}">✎ Изменить</button><button class="button ghost" data-action="delete-direction" data-id="${item.id}">Удалить</button></div></article>`; }).join('') || '<div class="empty"><strong>Направлений пока нет</strong></div>'}</div><section class="settings-card tag-management"><h3>Все теги</h3>${state.labels.length ? state.labels.map((tag) => `<div class="tag-row"><span class="tag-swatch" style="background:${tag.color || '#356AE6'}"></span><strong>${escapeHtml(tag.name)}</strong><span class="muted">${escapeHtml(state.directions.find((item) => item.id === tag.direction_id)?.name || 'Общий')}</span><div class="row-actions"><button class="button ghost" data-action="edit-label" data-id="${tag.id}">✎</button><button class="button ghost" data-action="delete-label" data-id="${tag.id}">Удалить</button></div></div>`).join('') : '<p class="muted">Тегов пока нет.</p>'}</section>`;
+  } else if (state.section === 'goals') {
+    view.innerHTML = `<header class="page-header"><div><p class="eyebrow">ДОЛГОСРОЧНЫЙ ФОКУС</p><h2>Цели</h2></div><button class="button primary" data-action="new-goal">+ Цель</button></header><div class="card-grid">${state.goals.map((goal) => `<article class="direction-card ${goal.is_overdue ? 'overdue' : ''}"><span class="direction-dot" style="background:${goal.color || '#356AE6'}"></span><h3>${escapeHtml(goal.title)}</h3><p>${goal.task_count ? `${goal.completed_task_count} из ${goal.task_count} задач завершено` : 'Задач пока нет'}${goal.deadline_at ? ` · ${deadlineText(goal.deadline_at)}` : ''}</p><div class="goal-card-progress"><span>Достигнуто ${goal.progress_percent || 0}%</span><i><b style="width:${goal.progress_percent || 0}%"></b></i></div><p>${escapeHtml(goal.description || 'Без описания')}</p><div class="direction-actions">${goal.status === 'ACTIVE' ? `<button class="button secondary" data-action="open-goal" data-id="${goal.id}">Открыть</button><button class="button ghost" data-action="complete-goal" data-id="${goal.id}">Готово</button>` : `<button class="button secondary" data-action="open-goal" data-id="${goal.id}">Посмотреть</button>`}</div></article>`).join('') || '<div class="empty"><strong>Целей пока нет</strong><p>Цель объединяет связанные задачи и помогает держать курс.</p></div>'}</div>`;
+  } else if (state.section === 'results') {
+    const report = state.report; view.innerHTML = `<header class="page-header"><div><p class="eyebrow">ФАКТ И НАГРУЗКА</p><h2>Итоги дня</h2><p class="muted">${dateKey(new Date())}</p></div><div><button class="button secondary" data-action="add-manual">+ Внести время</button><button class="button primary" data-action="refresh-report">Обновить</button></div></header>${state.notifications.filter((item) => item.status === 'OPEN').length ? `<section class="notification-list">${state.notifications.filter((item) => item.status === 'OPEN').map((item) => `<div><strong>Срок пропущен</strong><span>${escapeHtml(item.title)}</span><small>${escapeHtml(item.body || '')}</small></div>`).join('')}</section>` : ''}${report ? `<div class="metrics"><article><span>План</span><strong>${formatSeconds(report.planned_seconds)}</strong></article><article><span>Факт</span><strong>${formatSeconds(report.actual_seconds)}</strong></article><article><span>Выполнено</span><strong>${report.completed_count}</strong></article><article><span>Перенос</span><strong>${report.carryover_count}</strong></article></div><section class="report-section"><h3>Сессии</h3>${report.sessions.length ? report.sessions.map((item) => `<div class="session-row"><span>${escapeHtml(item.task_title || 'Общая работа')}</span><strong>${formatSeconds(item.elapsed_seconds)}</strong><small>${new Date(item.started_at).toLocaleString('ru-RU')}</small></div>`).join('') : '<p class="muted">За сегодня сессий пока нет.</p>'}</section>` : '<div class="empty">Собираю итог дня…</div>'}`;
+  } else renderSettings(view);
+}
+function renderSettings(view) {
+  const weeklyEvents = uniqueEvents();
+  view.innerHTML = `<header class="page-header"><div><p class="eyebrow">ЛОКАЛЬНОЕ ПРИЛОЖЕНИЕ</p><h2>Настройки расписания</h2></div></header><section class="settings-card"><h3>Обычная рабочая неделя</h3><p class="muted">Добавляйте несколько промежутков в любой день. Даты с ручным выделением имеют собственные интервалы.</p><div id="template-slots" class="template-slots">${templateRows().join('')}</div><button class="button secondary" data-action="add-template-slot">+ Добавить промежуток</button> <button class="button primary" data-action="save-default-availability">Сохранить шаблон</button></section><section class="settings-card"><h3>Повторяющееся фиксированное расписание</h3><p class="muted">Лекции, занятия и встречи здесь не становятся задачами и не попадают в банк задач.</p>${weeklyEvents.length ? weeklyEvents.map((event) => `<div class="tag-row"><span class="tag-swatch" style="background:${event.color}"></span><strong>${escapeHtml(event.title)}</strong><span class="muted">${event.weekday !== null ? ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][event.weekday] : 'разово'} · ${timeValue(event.start_minute)}–${timeValue(event.end_minute)}</span><div class="row-actions"><button class="button ghost" data-action="edit-event" data-id="${event.id}">✎</button><button class="button ghost" data-action="delete-event" data-id="${event.id}">Удалить</button></div></div>`).join('') : '<p class="muted">Повторяющихся событий пока нет.</p>'}<button class="button secondary" data-action="new-event">+ Добавить расписание</button></section><section class="settings-card"><h3>Подключение</h3><p class="muted">Данные остаются в локальной папке артефактов.</p><button class="button secondary" data-action="api-settings">Изменить адрес API</button></section>`;
+  const connectionCard = view.querySelector('.settings-card:last-child');
+  connectionCard.insertAdjacentHTML('beforebegin', `<section class="settings-card"><h3>Корзина задач</h3><p class="muted">Удалённые задачи остаются в базе и могут быть восстановлены без потери данных.</p>${state.deletedTasks.length ? state.deletedTasks.map((task) => `<div class="tag-row"><span class="tag-swatch" style="background:${colorForTask(task)}"></span><strong>${escapeHtml(task.title)}</strong><div class="row-actions"><button class="button secondary" data-action="restore" data-id="${task.id}">Восстановить</button></div></div>`).join('') : '<p class="muted">Корзина пока не загружена или пуста.</p>'}<button class="button secondary" data-action="show-trash">Показать корзину</button></section>`);
+}
+function templateRows() { const slots = state.templateSlots.map((slot) => ({ weekday:slot.weekday, start:slot.start_minute, end:slot.end_minute })); return (slots.length ? slots : [{ weekday:0, start:540, end:720 }]).map(templateRow); }
+function templateRow(slot = { weekday:0, start:540, end:720 }) { return `<div class="template-slot"><label class="field">День<select name="template_weekday">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((day, index) => `<option value="${index}" ${slot.weekday === index ? 'selected' : ''}>${day}</option>`).join('')}</select></label><label class="field">Начало<input name="template_start" type="time" value="${timeValue(slot.start)}" required /></label><label class="field">Конец<input name="template_end" type="time" value="${timeValue(slot.end)}" required /></label><button class="icon-button compact" type="button" data-action="remove-template-slot" aria-label="Удалить промежуток">×</button></div>`; }
+function uniqueEvents() { const all = state.week?.days.flatMap((day) => day.fixed_events) || []; return all.filter((event, index) => all.findIndex((item) => item.id === event.id) === index).map((event) => ({ ...event, start_minute:localMinute(event.start_at), end_minute:localMinute(event.end_at) })); }
+
+function openModal(type, entityId = null, options = {}) {
+  const modal = $('#modal'); const task = entityId ? state.tasks.find((item) => item.id === entityId) : null; const direction = entityId ? state.directions.find((item) => item.id === entityId) : null; const label = entityId ? state.labels.find((item) => item.id === entityId) : null; const goalItem = entityId ? state.goals.find((item) => item.id === entityId) : null; const eventItem = entityId ? uniqueEvents().find((item) => item.id === entityId) : null; const blockItem = entityId ? state.week?.days.flatMap((item) => item.blocks).find((item) => item.id === entityId) : null; const day = state.week?.days.find((item) => item.date === dateKey(state.weekStart)); const preselectedGoalId = task?.goal_id || options.goalId || '';
+  const colorField = (value) => `<input name="color" class="color-choice" type="color" value="${value || '#356AE6'}" aria-label="Цвет" />`;
+  const taskTemplate = `<div class="form-grid"><label class="field">Название<input name="title" required autofocus value="${escapeHtml(task?.title || '')}" /></label><label class="field">Цель<select name="goal_id"><option value="">Без цели</option>${state.goals.filter((item) => item.status === 'ACTIVE').map((item) => `<option value="${item.id}" ${preselectedGoalId === item.id ? 'selected' : ''}>${escapeHtml(item.title)}</option>`).join('')}</select></label><label class="field">Направление<select name="direction_id"><option value="">Без направления</option>${state.directions.map((item) => `<option value="${item.id}" ${task?.direction?.id === item.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label><div class="inline-fields"><label class="field">Оценка, минут<input name="estimate" type="number" min="1" step="1" value="${task?.estimate_minutes || 60}" required /></label><label class="field">Важность<select name="priority">${priorityValues.map((value) => `<option value="${value}" ${task?.priority === value || !task && value === 3 ? 'selected' : ''}>${value}</option>`).join('')}</select></label></div><label class="field">Цвет задачи${colorField(task?.color || task?.direction?.color || '#356AE6')}</label><label class="field">Срок<input name="deadline" type="datetime-local" value="${task?.deadline_at ? task.deadline_at.slice(0, 16) : ''}" /></label><label><input name="can_split" type="checkbox" ${task?.can_split ? 'checked' : ''}/> Разрешить разбивать на несколько промежутков</label><label><input name="repeat_rule" type="checkbox" ${task?.repeat_rule === 'WEEKLY' ? 'checked' : ''}/> Повторять еженедельно</label>${state.labels.length ? `<fieldset class="label-picker"><legend>Теги</legend>${state.labels.map((item) => `<label><input type="checkbox" name="label_ids" value="${item.id}" ${task?.labels.some((tag) => tag.id === item.id) ? 'checked' : ''}/> ${escapeHtml(item.name)}</label>`).join('')}</fieldset>` : ''}</div>`;
+  const templates = {
+    task:{ title:task ? 'Изменить задачу' : 'Новая задача', submit:task ? 'Сохранить' : 'Добавить задачу', html:taskTemplate },
+    goal:{ title:goalItem ? 'Изменить цель' : 'Новая цель', submit:goalItem ? 'Сохранить' : 'Создать цель', html:`<div class="form-grid"><label class="field">Название<input name="title" required autofocus value="${escapeHtml(goalItem?.title || '')}" /></label><label class="field">Направление<select name="direction_id"><option value="">Без направления</option>${state.directions.map((item) => `<option value="${item.id}" ${goalItem?.direction_id === item.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label><label class="field">Описание<textarea name="description" rows="4">${escapeHtml(goalItem?.description || '')}</textarea></label><div class="inline-fields"><label class="field">Важность<select name="priority">${priorityValues.map((value) => `<option value="${value}" ${goalItem?.priority === value || !goalItem && value === 3 ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label class="field">Цвет${colorField(goalItem?.color || '#356AE6')}</label></div><label class="field">Срок<input name="deadline" type="datetime-local" value="${goalItem?.deadline_at ? goalItem.deadline_at.slice(0, 16) : ''}" /></label></div>` },
+    direction:{ title:direction ? 'Изменить направление' : 'Новое направление', submit:direction ? 'Сохранить' : 'Создать направление', html:`<div class="form-grid"><label class="field">Название<input name="name" required autofocus value="${escapeHtml(direction?.name || '')}" /></label><div class="inline-fields"><label class="field">Тип<input name="kind" required value="${escapeHtml(direction?.kind || '')}" placeholder="Учёба, работа, спорт…" /></label><label class="field">Цвет${colorField(direction?.color || '#356AE6')}</label></div><div class="inline-fields"><label class="field">Важность по умолчанию<select name="priority">${priorityValues.map((value) => `<option value="${value}" ${direction?.default_priority === value || !direction && value === 3 ? 'selected' : ''}>${value}</option>`).join('')}</select></label><label class="field">Оценка, минут<input name="estimate" type="number" min="1" step="1" value="${direction?.default_estimate_minutes || ''}" /></label></div></div>` },
+    label:{ title:label ? 'Изменить тег' : 'Новый тег', submit:label ? 'Сохранить' : 'Создать тег', html:`<div class="form-grid"><label class="field">Название<input name="name" required autofocus value="${escapeHtml(label?.name || '')}" /></label><label class="field">Направление<select name="direction_id"><option value="">Общий тег</option>${state.directions.map((item) => `<option value="${item.id}" ${label?.direction_id === item.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label><label class="field">Цвет${colorField(label?.color || '#356AE6')}</label></div>` },
+    worktime:{ title:'Рабочее время на дату', submit:'Сохранить интервалы', html:`<div class="form-grid"><label class="field">Дата<input name="date" type="date" value="${dateKey(state.weekStart)}" required /></label><div id="work-slots">${(day?.availability.length ? day.availability.map((slot) => workSlot(localMinute(slot.start_at), localMinute(slot.end_at))).join('') : workSlot(540,720))}</div><button type="button" class="button secondary" data-action="add-work-slot">+ Добавить промежуток</button><p class="modal-note">Удалите все строки, чтобы освободить день от рабочего времени.</p></div>` },
+    block:{ title:'Изменить блок в плане', submit:'Сохранить время', html:`<div class="form-grid"><p class="modal-note">${escapeHtml(blockItem?.task_title || 'Задача')}</p><label class="field">Дата<input name="date" type="date" value="${blockItem ? dateKey(blockItem.start_at) : dateKey(state.weekStart)}" required /></label><div class="inline-fields"><label class="field">Начало<input name="start" type="time" step="900" value="${blockItem ? timeValue(localMinute(blockItem.start_at)) : '09:00'}" required /></label><label class="field">Конец<input name="end" type="time" step="900" value="${blockItem ? timeValue(localMinute(blockItem.end_at)) : '10:00'}" required /></label></div></div>` },
+    complete:{ title:'Завершить задачу', submit:'Завершить', html:`<div class="form-grid"><label class="field">Фактическое время, минут<input name="actual_minutes" type="number" min="1" step="5" placeholder="Например, 75" /></label>${task?.repeat_rule === 'WEEKLY' ? '<p class="modal-note">Повторяющаяся задача останется активной и перенесёт срок на неделю.</p>' : ''}</div>` },
+    event:{ title:eventItem ? 'Изменить расписание' : 'Неподвижное событие', submit:eventItem ? 'Сохранить' : 'Добавить событие', html:`<div class="form-grid"><label class="field">Название<input name="title" required value="${escapeHtml(eventItem?.title || '')}" /></label><label class="field">Дата<input name="date" type="date" value="${eventItem?.local_date || dateKey(state.weekStart)}" required /></label><div class="inline-fields"><label class="field">Начало<input name="start" type="time" value="${eventItem ? timeValue(eventItem.start_minute) : '10:00'}" required /></label><label class="field">Конец<input name="end" type="time" value="${eventItem ? timeValue(eventItem.end_minute) : '11:30'}" required /></label></div><label><input type="checkbox" name="weekly" ${eventItem?.weekday !== null && eventItem ? 'checked' : ''}/> Повторять каждую неделю</label><label class="field">Цвет${colorField(eventItem?.color || '#D9DDE2')}</label></div>` },
+    manual:{ title:'Внести фактическое время', submit:'Сохранить время', html:`<div class="form-grid"><label class="field">Задача<select name="task_id"><option value="">Общая работа</option>${state.tasks.filter((item) => item.status === 'ACTIVE').map((item) => `<option value="${item.id}">${escapeHtml(item.title)}</option>`).join('')}</select></label><div class="inline-fields"><label class="field">Начало<input name="started_at" type="datetime-local" value="${dateKey(new Date())}T09:00" required /></label><label class="field">Конец<input name="ended_at" type="datetime-local" value="${dateKey(new Date())}T10:00" required /></label></div></div>` },
+    api:{ title:'Адрес сервера', submit:'Подключить', html:`<div class="form-grid"><label class="field">API<input name="api" value="${state.apiBase}" required /></label></div>` },
+  };
+  const template = templates[type];
+  $('#modal-kicker').textContent = ['task','goal','direction','label','event'].includes(type) ? 'СОЗДАНИЕ И ИЗМЕНЕНИЕ' : 'НАСТРОЙКА';
+  $('#modal-title').textContent = template.title;
+  $('#modal-submit').textContent = template.submit;
+  $('#modal-content').innerHTML = template.html;
+  modal.dataset.type = type;
+  modal.dataset.entityId = entityId || '';
+  if (type === 'task') {
+    const directionInput = $('#modal-content [name="direction_id"]');
+    const applyParent = () => {
+      const inherited = state.directions.find((item) => item.id === directionInput.value);
+      if (!inherited) return;
+      if (!entityId) {
+        $('#modal-content [name="estimate"]').value = inherited.default_estimate_minutes || 60;
+        $('#modal-content [name="priority"]').value = inherited.default_priority;
+        $('#modal-content [name="color"]').value = inherited.color;
+      }
+      document.querySelectorAll('#modal-content [name="label_ids"]').forEach((input) => {
+        const label = state.labels.find((item) => item.id === input.value);
+        input.checked = Boolean(label?.direction_id && label.direction_id === inherited.id);
+      });
+    };
+    directionInput.addEventListener('change', applyParent);
+    const goalInput = $('#modal-content [name="goal_id"]');
+    goalInput?.addEventListener('change', () => {
+      const goal = state.goals.find((item) => item.id === goalInput.value);
+      if (!goal?.direction_id) return;
+      directionInput.value = goal.direction_id;
+      applyParent();
+    });
+  }
+  modal.showModal();
+}
+function workSlot(start = 540, end = 720) { return `<div class="inline-fields work-slot"><label class="field">Начало<input name="work_start" type="time" value="${timeValue(start)}" required /></label><label class="field">Конец<input name="work_end" type="time" value="${timeValue(end)}" required /></label><button type="button" class="icon-button compact" data-action="remove-work-slot" aria-label="Удалить промежуток">×</button></div>`; }
+
+async function submitModal(event) {
+  event.preventDefault(); const modal = $('#modal'); const fields = new FormData(event.currentTarget); const type = modal.dataset.type; const entityId = modal.dataset.entityId; const id = state.workspace.id;
+  try {
+    if (type === 'task') { const deadline = fields.get('deadline'); const estimate = Number(fields.get('estimate')); const payload = { title:fields.get('title'), direction_id:fields.get('direction_id') || null, goal_id:fields.get('goal_id') || null, color:fields.get('color'), label_ids:fields.getAll('label_ids'), estimate_minutes:estimate, min_block_minutes:Math.min(30, estimate), preferred_block_minutes:estimate, can_split:Boolean(fields.get('can_split')), priority:Number(fields.get('priority')), deadline_at:deadline ? new Date(deadline).toISOString() : null, repeat_rule:fields.get('repeat_rule') ? 'WEEKLY' : 'NONE' }; await api(entityId ? `/workspaces/${id}/tasks/${entityId}` : `/workspaces/${id}/tasks`, { method:entityId ? 'PATCH' : 'POST', body:JSON.stringify(payload) }); }
+    if (type === 'goal') { const deadline = fields.get('deadline'); const payload = { title:fields.get('title'), direction_id:fields.get('direction_id') || null, description:fields.get('description') || null, color:fields.get('color'), priority:Number(fields.get('priority')), deadline_at:deadline ? new Date(deadline).toISOString() : null }; await api(entityId ? `/workspaces/${id}/goals/${entityId}` : `/workspaces/${id}/goals`, { method:entityId ? 'PATCH' : 'POST', body:JSON.stringify(payload) }); }
+    if (type === 'direction') { const payload = { name:fields.get('name'), kind:fields.get('kind'), color:fields.get('color'), default_priority:Number(fields.get('priority')), default_estimate_minutes:fields.get('estimate') ? Number(fields.get('estimate')) : null }; await api(entityId ? `/workspaces/${id}/directions/${entityId}` : `/workspaces/${id}/directions`, { method:entityId ? 'PATCH' : 'POST', body:JSON.stringify(payload) }); }
+    if (type === 'label') { const payload = { name:fields.get('name'), direction_id:fields.get('direction_id') || null, color:fields.get('color') }; await api(entityId ? `/workspaces/${id}/labels/${entityId}` : `/workspaces/${id}/labels`, { method:entityId ? 'PATCH' : 'POST', body:JSON.stringify(payload) }); }
+    if (type === 'worktime') { const slots = fields.getAll('work_start').map((start, index) => start && fields.getAll('work_end')[index] ? { start_minute:toMinutes(start), end_minute:toMinutes(fields.getAll('work_end')[index]) } : null).filter(Boolean); await api(`/workspaces/${id}/availability/dates/${fields.get('date')}`, { method:'PUT', body:JSON.stringify({ slots }) }); }
+    if (type === 'block') { const start = new Date(`${fields.get('date')}T${fields.get('start')}`); const end = new Date(`${fields.get('date')}T${fields.get('end')}`); const updated = await api(`/workspaces/${id}/blocks/${entityId}`, { method:'PATCH', body:JSON.stringify({ start_at:start.toISOString(), end_at:end.toISOString(), is_pinned:true, allow_conflict:true }) }); removeBlockLocally(entityId, true); mergeBlocks([updated], true); modal.close(); renderWeek(); showToast('Время блока обновлено'); scheduleBackgroundRefresh(); return; }
+    if (type === 'complete') { const updated = await api(`/workspaces/${id}/tasks/${entityId}/complete`, { method:'POST', body:JSON.stringify({ actual_minutes:fields.get('actual_minutes') ? Number(fields.get('actual_minutes')) : null }) }); const taskIndex = state.tasks.findIndex((item) => item.id === entityId); if (taskIndex >= 0) state.tasks[taskIndex] = updated; state.week?.days.forEach((day) => day.blocks.forEach((block) => { if (block.task_id === entityId) block.task_status = updated.status; })); if (updated.status === 'COMPLETED' && state.dailyProgress) state.dailyProgress.completed_count += 1; modal.close(); renderTasks(); renderWeek(); renderDailySuccess(); showToast('Задача завершена — блок остался в плане'); scheduleBackgroundRefresh(); return; }
+    if (type === 'event') { const date = String(fields.get('date')); const eventDate = new Date(`${date}T12:00:00`); const payload = { title:fields.get('title'), start_minute:toMinutes(fields.get('start')), end_minute:toMinutes(fields.get('end')), weekday:fields.get('weekly') ? (eventDate.getDay() + 6) % 7 : null, local_date:fields.get('weekly') ? null : date, color:fields.get('color') }; await api(entityId ? `/workspaces/${id}/fixed-events/${entityId}` : `/workspaces/${id}/fixed-events`, { method:entityId ? 'PATCH' : 'POST', body:JSON.stringify(payload) }); }
+    if (type === 'manual') await api(`/workspaces/${id}/work-sessions/manual`, { method:'POST', body:JSON.stringify({ task_id:fields.get('task_id') || null, started_at:new Date(fields.get('started_at')).toISOString(), ended_at:new Date(fields.get('ended_at')).toISOString() }) });
+    if (type === 'api') { state.apiBase = String(fields.get('api')).replace(/\/$/, ''); localStorage.setItem('planner-api', state.apiBase); }
+    modal.close();
+    if (type === 'api') { await initialize(); return; }
+    await loadData();
+    if (state.section === 'goal-detail' && state.goalDetail?.id) await openGoalPage(state.goalDetail.id);
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function planSelected() { const selected = state.tasks.filter((task) => state.selected.has(task.id) && task.planning_status !== 'PLANNED').map((task) => task.id); if (!selected.length) { showToast('Выберите хотя бы одну ещё не размещённую задачу.', true); return; } if (!state.week.days.reduce((sum, day) => sum + day.free_minutes, 0)) { showToast('Сначала задайте рабочее время.', true); openModal('worktime'); return; } try { const end = new Date(state.weekStart); end.setDate(end.getDate() + 7); state.plan = await api(`/workspaces/${state.workspace.id}/planner/runs`, { method:'POST', body:JSON.stringify({ task_ids:selected, horizon_start:state.weekStart.toISOString(), horizon_end:end.toISOString() }) }); state.planPanelHidden = false; renderWeek(); renderPlan(); } catch (error) { showToast(error.message, true); } }
+async function applyPlan() { try { const conflicts = state.plan.proposals.filter((item) => item.has_conflict); const allowConflicts = conflicts.length > 0 && confirm(`В варианте есть пересечения: ${conflicts.length}. Разместить их с пометкой конфликта?`); const accepted = allowConflicts ? state.plan.proposals.map((item) => item.id) : state.plan.proposals.filter((item) => !item.has_conflict).map((item) => item.id); const result = await api(`/workspaces/${state.workspace.id}/planner/runs/${state.plan.id}/apply`, { method:'POST', body:JSON.stringify({ accepted_proposal_ids:accepted, allow_conflicts:allowConflicts }) }); mergeBlocks(result.blocks, true); state.plan = null; state.selected.clear(); renderTasks(); renderWeek(); renderPlan(); showToast('Блоки сразу добавлены в расписание'); scheduleBackgroundRefresh(); } catch (error) { showToast(error.message, true); } }
+async function startTask(taskId) { try { state.session = await api(`/workspaces/${state.workspace.id}/work-sessions/start`, { method:'POST', body:JSON.stringify({ task_id:taskId }) }); state.sessionBarHidden = false; localStorage.removeItem('planner-session-hidden'); renderSession(); } catch (error) { showToast(error.message, true); } }
+async function toggleSession() { try { const action = state.session.status === 'RUNNING' ? 'pause' : 'resume'; state.session = await api(`/workspaces/${state.workspace.id}/work-sessions/${action}`, { method:'POST' }); renderSession(); } catch (error) { showToast(error.message, true); } }
+async function finishSession() { try { await api(`/workspaces/${state.workspace.id}/work-sessions/finish`, { method:'POST' }); state.session = null; renderSession(); showToast('Сессия завершена'); } catch (error) { showToast(error.message, true); } }
+async function loadReport() { try { state.report = await api(`/workspaces/${state.workspace.id}/reports/daily/${dateKey(new Date())}`); state.dailyProgress = state.report; renderDailySuccess(); renderSection(); } catch (error) { showToast(error.message, true); } }
+async function transitionTask(taskId, action) { try { await api(`/workspaces/${state.workspace.id}/tasks/${taskId}/${action}`, { method:'POST' }); await loadData(); } catch (error) { showToast(error.message, true); } }
+async function deleteEntity(path, message) { if (!confirm('Удалить? Действие можно будет отменить только вручную.')) return; try { await api(path, { method:'DELETE' }); await loadData(); showToast(message); } catch (error) { showToast(error.message, true); } }
+async function loadDeletedTasks() { try { const tasks = await api(`/workspaces/${state.workspace.id}/tasks?include_completed=true&include_deleted=true`); state.deletedTasks = tasks.filter((task) => task.deleted_at); renderSection(); } catch (error) { showToast(error.message, true); } }
+
+function showToast(message, error = false) { const toast = $('#toast'); $('#toast-message').textContent = message; toast.className = `toast show ${error ? 'error' : ''}`; clearTimeout(toast.timer); toast.timer = setTimeout(() => { toast.className = 'toast'; }, 5000); }
+function renderOffline() { $('#week-range').textContent = 'Нет подключения'; $('#task-list').innerHTML = '<div class="empty"><strong>Сервер не запущен</strong></div>'; }
+
+document.addEventListener('click', async (event) => {
+  const start = event.target.closest('[data-start-task]'); if (start) { startTask(start.dataset.startTask); return; }
+  const taskCard = event.target.closest('[data-task-card]'); if (taskCard && !event.target.closest('button,input')) { const id = taskCard.dataset.taskCard; const task = state.tasks.find((item) => item.id === id); if (task?.planning_status !== 'PLANNED') { state.selected.has(id) ? state.selected.delete(id) : state.selected.add(id); renderTasks(); } return; }
+  const fixed = event.target.closest('[data-fixed-event]'); if (fixed) { openModal('event', fixed.dataset.fixedEvent); return; }
+  const action = event.target.closest('[data-action]'); if (!action) return; const id = action.dataset.id;
+  if (action.dataset.action === 'new-task') openModal('task');
+  if (action.dataset.action === 'new-goal') openGoalPage();
+  if (action.dataset.action === 'new-direction') openModal('direction');
+  if (action.dataset.action === 'new-label') openModal('label');
+  if (action.dataset.action === 'new-event') openModal('event');
+  if (action.dataset.action === 'edit-task') openModal('task', id);
+  if (action.dataset.action === 'edit-goal') openGoalPage(id);
+  if (action.dataset.action === 'open-goal') openGoalPage(id);
+  if (action.dataset.action === 'back-to-goals') { state.section = 'goals'; state.goalDetail = null; renderSection(); }
+  if (action.dataset.action === 'edit-goal-task') openModal('task', id, { goalId:state.goalDetail?.id });
+  if (action.dataset.action === 'goal-task-remove') { state.goalTaskIds = state.goalTaskIds.filter((taskId) => taskId !== id); await saveGoalTaskSequence(); }
+  if (action.dataset.action === 'goal-task-up' || action.dataset.action === 'goal-task-down') { const index = state.goalTaskIds.indexOf(id); const next = action.dataset.action === 'goal-task-up' ? index - 1 : index + 1; if (index >= 0 && next >= 0 && next < state.goalTaskIds.length) { [state.goalTaskIds[index], state.goalTaskIds[next]] = [state.goalTaskIds[next], state.goalTaskIds[index]]; await saveGoalTaskSequence(); } }
+  if (action.dataset.action === 'edit-direction') openModal('direction', id);
+  if (action.dataset.action === 'edit-label') openModal('label', id);
+  if (action.dataset.action === 'edit-event') openModal('event', id);
+  if (action.dataset.action === 'edit-block') openModal('block', id);
+  if (action.dataset.action === 'complete') openModal('complete', id);
+  if (action.dataset.action === 'complete-goal') api(`/workspaces/${state.workspace.id}/goals/${id}/complete`, { method:'POST' }).then(() => loadData()).catch((error) => showToast(error.message, true));
+  if (action.dataset.action === 'start') startTask(id);
+  if (action.dataset.action === 'auto-plan-task') { state.selected = new Set([id]); renderTasks(); planSelected(); }
+  if (action.dataset.action === 'delete-task') deleteEntity(`/workspaces/${state.workspace.id}/tasks/${id}`, 'Задача удалена');
+  if (action.dataset.action === 'delete-direction') deleteEntity(`/workspaces/${state.workspace.id}/directions/${id}`, 'Направление удалено');
+  if (action.dataset.action === 'delete-label') deleteEntity(`/workspaces/${state.workspace.id}/labels/${id}`, 'Тег удалён');
+  if (action.dataset.action === 'delete-event') deleteEntity(`/workspaces/${state.workspace.id}/fixed-events/${id}`, 'Расписание удалено');
+  if (action.dataset.action === 'cancel-block') cancelBlock(id);
+  if (action.dataset.action === 'complete-block') completeBlock(id);
+  if (action.dataset.action === 'restore') transitionTask(id, 'restore');
+  if (action.dataset.action === 'show-trash') loadDeletedTasks();
+  if (action.dataset.action === 'refresh-report') loadReport();
+  if (action.dataset.action === 'add-manual') openModal('manual');
+  if (action.dataset.action === 'api-settings') openModal('api');
+  if (action.dataset.action === 'add-work-slot') $('#work-slots').insertAdjacentHTML('beforeend', workSlot());
+  if (action.dataset.action === 'remove-work-slot') action.closest('.work-slot').remove();
+  if (action.dataset.action === 'remove-availability-slot') removeAvailabilitySlot(action.dataset.date, Number(action.dataset.start), Number(action.dataset.end));
+  if (action.dataset.action === 'add-template-slot') $('#template-slots').insertAdjacentHTML('beforeend', templateRow());
+  if (action.dataset.action === 'remove-template-slot') action.closest('.template-slot').remove();
+  if (action.dataset.action === 'save-default-availability') saveDefaultAvailability();
+});
+async function removeAvailabilitySlot(date, start, end) { const day = state.week?.days.find((item) => item.date === date); const slots = (day?.availability || []).map((slot) => ({ start:localMinute(slot.start_at), end:localMinute(slot.end_at) })).filter((slot) => slot.start !== start || slot.end !== end); try { await api(`/workspaces/${state.workspace.id}/availability/dates/${date}`, { method:'PUT', body:JSON.stringify({ slots:slots.map((slot) => ({ start_minute:slot.start, end_minute:slot.end })) }) }); await loadData(); showToast(`Свободное время ${timeValue(start)}–${timeValue(end)} удалено`); } catch (error) { showToast(error.message, true); } }
+async function cancelBlock(blockId) { if (!confirm('Убрать этот блок из плана?')) return; try { await api(`/workspaces/${state.workspace.id}/blocks/${blockId}`, { method:'DELETE' }); removeBlockLocally(blockId, true); renderTasks(); renderWeek(); showToast('Блок убран из плана'); scheduleBackgroundRefresh(); } catch (error) { showToast(error.message, true); } }
+async function completeBlock(blockId) { try { const block = await api(`/workspaces/${state.workspace.id}/blocks/${blockId}/complete`, { method:'POST', body:JSON.stringify({}) }); mergeBlocks([block], true); renderWeek(); showToast('Блок отмечен выполненным'); scheduleBackgroundRefresh(); } catch (error) { showToast(error.message, true); } }
+async function saveDefaultAvailability() { const rows = [...document.querySelectorAll('.template-slot')]; const slots = rows.map((row) => ({ weekday:Number(row.querySelector('[name="template_weekday"]').value), start_minute:toMinutes(row.querySelector('[name="template_start"]').value), end_minute:toMinutes(row.querySelector('[name="template_end"]').value) })); try { await api(`/workspaces/${state.workspace.id}/availability/default`, { method:'PUT', body:JSON.stringify({ name:'Обычная неделя', slots }) }); await loadData(); showToast('Шаблон рабочей недели сохранён'); } catch (error) { showToast(error.message, true); } }
+
+$('#task-search').addEventListener('input', (event) => { state.search = event.target.value; renderTasks(); });
+$('#task-sort').addEventListener('change', (event) => { state.taskSort = event.target.value; localStorage.setItem('planner-task-sort', state.taskSort); renderTasks(); if (state.section === 'tasks') renderSection(); });
+document.querySelectorAll('.filter').forEach((button) => button.addEventListener('click', () => { document.querySelector('.filter.active').classList.remove('active'); button.classList.add('active'); state.filter = button.dataset.filter; renderTasks(); }));
+document.querySelectorAll('.nav-item[data-section]').forEach((button) => button.addEventListener('click', () => { document.querySelector('.nav-item.active').classList.remove('active'); button.classList.add('active'); state.section = button.dataset.section; renderSection(); if (state.section === 'results') loadReport(); }));
+$('#theme-toggle').addEventListener('click', () => { const dark = document.documentElement.dataset.theme !== 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : ''; localStorage.setItem('planner-theme', dark ? 'dark' : 'light'); $('#theme-toggle').setAttribute('aria-pressed', String(dark)); });
+$('#add-task').addEventListener('click', () => openModal('task')); $('#quick-task').addEventListener('click', () => openModal('task')); $('#edit-worktime').addEventListener('click', () => openModal('worktime')); $('#record-worktime').addEventListener('click', () => openModal('manual')); $('#add-event').addEventListener('click', () => openModal('event')); $('#api-settings').addEventListener('click', () => openModal('api'));
+$('#toggle-nav-panel').addEventListener('click', () => { state.navPanelHidden = true; localStorage.setItem('planner-nav-panel-hidden', 'true'); renderTaskPanelVisibility(); });
+$('#show-nav-panel').addEventListener('click', () => { state.navPanelHidden = false; localStorage.removeItem('planner-nav-panel-hidden'); renderTaskPanelVisibility(); });
+$('#toggle-task-panel').addEventListener('click', () => { state.panelHidden = true; localStorage.setItem('planner-task-panel-hidden', 'true'); renderTaskPanelVisibility(); });
+$('#show-task-panel').addEventListener('click', () => { state.panelHidden = false; localStorage.removeItem('planner-task-panel-hidden'); renderTaskPanelVisibility(); });
+$('#modal-close').addEventListener('click', () => $('#modal').close()); $('#modal-cancel').addEventListener('click', () => $('#modal').close()); $('#modal-form').addEventListener('submit', submitModal); $('#plan-selected').addEventListener('click', planSelected); $('#clear-selection').addEventListener('click', () => { state.selected.clear(); renderTasks(); }); $('#hide-plan').addEventListener('click', () => { state.planPanelHidden = true; renderPlan(); }); $('#show-plan').addEventListener('click', () => { state.planPanelHidden = false; renderPlan(); }); $('#discard-plan').addEventListener('click', () => { state.plan = null; renderWeek(); renderPlan(); }); $('#replan').addEventListener('click', planSelected); $('#apply-plan').addEventListener('click', applyPlan); $('#session-pause').addEventListener('click', toggleSession); $('#session-finish').addEventListener('click', finishSession); $('#session-hide').addEventListener('click', () => { state.sessionBarHidden = true; localStorage.setItem('planner-session-hidden','true'); renderSession(); }); $('#session-restore').addEventListener('click', () => { state.sessionBarHidden = false; localStorage.removeItem('planner-session-hidden'); renderSession(); }); $('#toast-close').addEventListener('click', () => { $('#toast').className = 'toast'; });
+document.addEventListener('submit', (event) => { if (event.target.id === 'goal-detail-form') { event.preventDefault(); saveGoalDetail(event.target); } if (event.target.id === 'goal-new-task-form') { event.preventDefault(); createGoalTask(event.target); } });
+
+document.addEventListener('dragstart', (event) => { if (event.target.closest('.block-actions')) { event.preventDefault(); return; } const block = event.target.closest('[data-schedule-block]'); const card = event.target.closest('[data-drag-task]'); if (!block && !card) return; state.dragSource = block ? { kind:'block', id:block.dataset.scheduleBlock } : { kind:'task', id:card.dataset.dragTask }; event.dataTransfer.setData('text/plain', `${state.dragSource.kind}:${state.dragSource.id}`); event.dataTransfer.effectAllowed = block ? 'move' : 'copy'; (block || card).classList.add('dragging'); });
+document.addEventListener('dragend', (event) => { event.target.closest('[data-schedule-block],[data-drag-task]')?.classList.remove('dragging'); document.querySelectorAll('.day-column.drop-target').forEach((day) => day.classList.remove('drop-target')); state.dragSource = null; });
+document.addEventListener('dragover', (event) => { const day = event.target.closest('.day-column'); if (!day || !state.dragSource) return; event.preventDefault(); document.querySelectorAll('.day-column.drop-target').forEach((column) => { if (column !== day) column.classList.remove('drop-target'); }); day.classList.add('drop-target'); });
+document.addEventListener('dragleave', (event) => { const day = event.target.closest('.day-column'); if (day && !day.contains(event.relatedTarget)) day.classList.remove('drop-target'); });
+document.addEventListener('drop', async (event) => { const day = event.target.closest('.day-column'); const source = state.dragSource; if (!day || !source) return; event.preventDefault(); event.stopPropagation(); document.querySelectorAll('.day-column.drop-target').forEach((column) => column.classList.remove('drop-target')); state.dragSource = null; const minute = minuteFromPointer(day, event); const base = new Date(`${day.dataset.date}T00:00:00`); base.setMinutes(minute); try { let updated; if (source.kind === 'block') { const old = state.week.days.flatMap((item) => item.blocks).find((item) => item.id === source.id); if (!old) throw new Error('Исходный блок уже не найден. Обновите неделю и попробуйте снова.'); const duration = Math.round((new Date(old.end_at).getTime() - new Date(old.start_at).getTime()) / 60000); const end = new Date(base); end.setMinutes(end.getMinutes() + duration); updated = await api(`/workspaces/${state.workspace.id}/blocks/${source.id}`, { method:'PATCH', body:JSON.stringify({ start_at:base.toISOString(), end_at:end.toISOString(), is_pinned:true, expected_version:old.version, allow_conflict:true }) }); removeBlockLocally(source.id, true); showToast('Блок перенесён'); } else { const task = state.tasks.find((item) => item.id === source.id); if (!task) throw new Error('Задача уже не найдена. Обновите неделю и попробуйте снова.'); const remaining = Math.max(1, task.estimate_minutes - task.planned_minutes); const duration = task.can_split ? Math.min(task.preferred_block_minutes || remaining, remaining) : remaining; const end = new Date(base); end.setMinutes(end.getMinutes() + duration); updated = await api(`/workspaces/${state.workspace.id}/blocks`, { method:'POST', body:JSON.stringify({ task_id:task.id, start_at:base.toISOString(), end_at:end.toISOString(), is_pinned:true, allow_conflict:true }) }); showToast('Задача добавлена в план'); } mergeBlocks([updated], true); renderTasks(); renderWeek(); scheduleBackgroundRefresh(); } catch (error) { showToast(error.message, true); } });
+function minuteFromPointer(day, event) { const rect = day.getBoundingClientRect(); return snapMinute(DAY_START + (event.clientY - rect.top - HEADER_HEIGHT) / pixelsPerMinute); }
+
+document.addEventListener('pointerdown', (event) => { const day = event.target.closest('.day-column'); if (!day || event.button !== 0 || event.target.closest('.schedule-block,.fixed-event,.day-header,.availability-action')) return; const minute = minuteFromPointer(day, event); state.availabilitySelection = { day, date:day.dataset.date, start:minute, end:minute + 15 }; day.setPointerCapture?.(event.pointerId); renderAvailabilityDraft(); });
+document.addEventListener('pointermove', (event) => { if (!state.availabilitySelection) return; state.availabilitySelection.end = minuteFromPointer(state.availabilitySelection.day, event) + 15; renderAvailabilityDraft(); });
+document.addEventListener('pointerup', async () => { const selection = state.availabilitySelection; if (!selection) return; state.availabilitySelection = null; document.querySelector('.availability-draft')?.remove(); const start = Math.min(selection.start, selection.end - 15); const end = Math.max(selection.start + 15, selection.end); try { const day = state.week.days.find((item) => item.date === selection.date); const slots = mergeSlots([...(day?.availability || []).map((slot) => ({ start:localMinute(slot.start_at), end:localMinute(slot.end_at) })), { start, end }]); await api(`/workspaces/${state.workspace.id}/availability/dates/${selection.date}`, { method:'PUT', body:JSON.stringify({ slots:slots.map((slot) => ({ start_minute:slot.start, end_minute:slot.end })) }) }); await loadData(); showToast(`Рабочее время добавлено: ${timeValue(start)}–${timeValue(end)}`); } catch (error) { showToast(error.message, true); } });
+function renderAvailabilityDraft() { const selection = state.availabilitySelection; if (!selection) return; let draft = selection.day.querySelector('.availability-draft'); if (!draft) { draft = document.createElement('div'); draft.className = 'availability-draft'; selection.day.append(draft); } const start = Math.min(selection.start, selection.end - 15); const end = Math.max(selection.start + 15, selection.end); draft.style.top = `${pixelForMinute(start) + 1}px`; draft.style.height = `${heightForRange(start, end)}px`; }
+function mergeSlots(slots) { return slots.sort((a,b) => a.start - b.start).reduce((result, slot) => { const previous = result.at(-1); if (previous && slot.start <= previous.end) previous.end = Math.max(previous.end, slot.end); else result.push({ ...slot }); return result; }, []); }
+async function moveWeek(delta) { state.weekStart = new Date(state.weekStart); state.weekStart.setDate(state.weekStart.getDate() + delta * 7); await loadData(); }
+$('#previous-week').addEventListener('click', () => moveWeek(-1)); $('#next-week').addEventListener('click', () => moveWeek(1)); $('#today').addEventListener('click', async () => { state.weekStart = monday(new Date()); await loadData(); });
+if (localStorage.getItem('planner-theme') === 'dark') { document.documentElement.dataset.theme = 'dark'; $('#theme-toggle').setAttribute('aria-pressed', 'true'); }
+initialize();

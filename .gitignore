@@ -1,0 +1,44 @@
+# Локальные ключи и переменные окружения
+.env
+.env.*
+!.env.example
+
+# Виртуальные окружения и кэш Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Временные файлы системы документации
+docs/.docs_ctl.lock
+docs/.*.tmp
+
+# Изменяемые данные приложения
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+artifacts/manifest.json
+artifacts/config.toml
+artifacts/database/*
+!artifacts/database/.gitkeep
+artifacts/backups/*
+!artifacts/backups/.gitkeep
+artifacts/portable/*
+!artifacts/portable/.gitkeep
+artifacts/exports/*
+!artifacts/exports/.gitkeep
+artifacts/imports/incoming/*
+!artifacts/imports/incoming/.gitkeep
+artifacts/imports/processed/*
+!artifacts/imports/processed/.gitkeep
+artifacts/imports/rejected/*
+!artifacts/imports/rejected/.gitkeep
+artifacts/attachments/*
+!artifacts/attachments/.gitkeep
+artifacts/logs/*
+!artifacts/logs/.gitkeep
+artifacts/agent_runs/*
+!artifacts/agent_runs/.gitkeep
+artifacts/tmp/*
+!artifacts/tmp/.gitkeep
