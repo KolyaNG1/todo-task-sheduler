@@ -173,6 +173,14 @@ class PlannerService:
         self._bump_revisions(context.workspace_id)
         self._record_event(context, action="archived", entity_type="direction", entity_id=direction.id)
 
+    def restore_direction(self, context: RequestContext, direction_id: str) -> Direction:
+        direction = self.get_direction(context, direction_id)
+        direction.is_archived = False
+        direction.version += 1
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="restored", entity_type="direction", entity_id=direction.id)
+        return direction
+
     def list_labels(self, context: RequestContext, *, direction_id: str | None = None) -> list[Label]:
         statement = select(Label).where(Label.workspace_id == context.workspace_id, Label.is_archived.is_(False))
         if direction_id is not None:
@@ -215,6 +223,12 @@ class PlannerService:
         label = self.get_label(context, label_id)
         label.is_archived = True
         self._bump_revisions(context.workspace_id)
+
+    def restore_label(self, context: RequestContext, label_id: str) -> Label:
+        label = self.get_label(context, label_id)
+        label.is_archived = False
+        self._bump_revisions(context.workspace_id)
+        return label
 
     def _get_labels(self, context: RequestContext, label_ids: list[str], direction_id: str | None) -> list[Label]:
         if not label_ids:
@@ -298,6 +312,30 @@ class PlannerService:
         self._record_event(context, action="completed", entity_type="goal", entity_id=goal.id)
         return goal
 
+    def reopen_goal(self, context: RequestContext, goal_id: str) -> Goal:
+        """Возвращает готовую цель в работу, не меняя её задачи и их историю."""
+        goal = self.get_goal(context, goal_id)
+        goal.status, goal.completed_at, goal.version = "ACTIVE", None, goal.version + 1
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="reopened", entity_type="goal", entity_id=goal.id)
+        return goal
+
+    def delete_goal(self, context: RequestContext, goal_id: str) -> None:
+        """Перемещает цель в архив, не разрушая состав и порядок её задач."""
+        goal = self.get_goal(context, goal_id)
+        goal.deleted_at, goal.status, goal.version = self.now, "ARCHIVED", goal.version + 1
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="archived", entity_type="goal", entity_id=goal.id)
+
+    def restore_goal(self, context: RequestContext, goal_id: str) -> Goal:
+        goal = self.session.get(Goal, goal_id)
+        if goal is None or goal.workspace_id != context.workspace_id or goal.deleted_at is None:
+            raise NotFoundError("Цель не найдена в архиве")
+        goal.deleted_at, goal.status, goal.completed_at, goal.version = None, "ACTIVE", None, goal.version + 1
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="restored", entity_type="goal", entity_id=goal.id)
+        return goal
+
     def replace_goal_tasks(self, context: RequestContext, goal_id: str, task_ids: list[str]) -> Goal:
         """Закрепляет состав и последовательность задач цели одним действием."""
         goal = self.get_goal(context, goal_id)
@@ -357,10 +395,28 @@ class PlannerService:
             select(Task.id).where(Task.workspace_id == context.workspace_id, Task.parent_task_id == task_id, Task.deleted_at.is_(None)).limit(1)
         ) is not None
 
-    def create_task(self, context: RequestContext, *, title: str, direction_id: str | None = None, goal_id: str | None = None, parent_task_id: str | None = None, color: str | None = None, label_ids: list[str] | None = None, description: str | None = None, deadline_at: datetime | None = None, priority: int | None = None, estimate_minutes: int | None = None, can_split: bool = False, min_block_minutes: int = 30, preferred_block_minutes: int = 120, earliest_start_at: datetime | None = None, repeat_rule: str = "NONE") -> Task:
+    def _task_can_schedule(self, context: RequestContext, task: Task) -> bool:
+        """Лист всегда можно планировать; узел с детьми — только при явном признаке чекпоинта."""
+        return task.is_checkpoint or not self._task_has_children(context, task.id)
+
+    def _task_has_confirmed_block(self, context: RequestContext, task_id: str) -> bool:
+        """Не даёт незаметно превратить уже размещённую работу в контейнер."""
+        return self.session.scalar(
+            select(ScheduleBlock.id).where(
+                ScheduleBlock.workspace_id == context.workspace_id,
+                ScheduleBlock.task_id == task_id,
+                ScheduleBlock.status == "CONFIRMED",
+            ).limit(1)
+        ) is not None
+
+    def create_task(self, context: RequestContext, *, title: str, direction_id: str | None = None, goal_id: str | None = None, parent_task_id: str | None = None, is_checkpoint: bool | None = None, color: str | None = None, label_ids: list[str] | None = None, description: str | None = None, deadline_at: datetime | None = None, priority: int | None = None, estimate_minutes: int | None = None, can_split: bool = False, min_block_minutes: int = 30, preferred_block_minutes: int = 120, earliest_start_at: datetime | None = None, repeat_rule: str = "NONE") -> Task:
         if not title.strip():
             raise ValidationError("Название задачи не может быть пустым")
         parent = self._parent_task(context, parent_task_id)
+        if parent and parent.status != "ACTIVE":
+            raise ValidationError("Нельзя добавлять чекпоинт к завершённой, отменённой или архивной задаче")
+        if parent and self._task_has_confirmed_block(context, parent.id) and not parent.is_checkpoint:
+            raise ValidationError("Сначала снимите родительскую задачу из плана, затем добавляйте чекпоинты")
         if parent and goal_id and parent.goal_id and goal_id != parent.goal_id:
             raise ValidationError("Чекпоинт и его родитель должны принадлежать одной цели")
         goal_id = parent.goal_id if parent and parent.goal_id else goal_id
@@ -382,6 +438,7 @@ class PlannerService:
             direction_id=direction_id,
             goal_id=goal.id if goal else None,
             parent_task_id=parent.id if parent else None,
+            is_checkpoint=bool(parent) if is_checkpoint is None else is_checkpoint,
             goal_position=(self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == goal.id, Task.parent_task_id.is_(None))) or 0) + 1 if goal and not parent else 0,
             child_position=(self.session.scalar(select(func.coalesce(func.max(Task.child_position), 0)).where(Task.parent_task_id == parent.id)) or 0) + 1 if parent else 0,
             color=color or (parent.color if parent else None) or (direction.color if direction else None),
@@ -423,6 +480,10 @@ class PlannerService:
         task = self.get_task(context, task_id)
         parent_id = values.get("parent_task_id", task.parent_task_id)
         parent = self._parent_task(context, str(parent_id) if parent_id else None, task_id=task.id)
+        if parent and parent.status != "ACTIVE":
+            raise ValidationError("Нельзя сделать чекпоинт частью завершённой, отменённой или архивной задачи")
+        if parent and self._task_has_confirmed_block(context, parent.id) and not parent.is_checkpoint:
+            raise ValidationError("Сначала снимите родительскую задачу из плана, затем добавляйте чекпоинты")
         direction_id = values.get("direction_id", task.direction_id)
         goal_id = values.get("goal_id", task.goal_id)
         if parent and parent.goal_id:
@@ -448,7 +509,7 @@ class PlannerService:
             raise ValidationError("Некорректные параметры задачи")
         if "repeat_rule" in values and values["repeat_rule"] not in {"NONE", "WEEKLY"}:
             raise ValidationError("Неизвестное правило повторения")
-        for key in ("title", "description", "color", "priority", "estimate_minutes", "can_split", "min_block_minutes", "preferred_block_minutes", "repeat_rule"):
+        for key in ("title", "description", "color", "priority", "estimate_minutes", "can_split", "min_block_minutes", "preferred_block_minutes", "repeat_rule", "is_checkpoint"):
             if key in values:
                 setattr(task, key, values[key])
         task.min_block_minutes = minimum
@@ -494,12 +555,10 @@ class PlannerService:
 
     def complete_task(self, context: RequestContext, task_id: str, *, actual_minutes: int | None = None) -> Task:
         task = self.get_task(context, task_id)
-        if self._task_has_children(context, task.id):
+        if not self._task_can_schedule(context, task):
             raise ValidationError("Сначала завершите чекпоинты этой задачи")
-        task.status = "ACTIVE" if task.repeat_rule == "WEEKLY" else "COMPLETED"
+        task.status = "COMPLETED"
         task.completed_at = self.now
-        if task.repeat_rule == "WEEKLY" and task.deadline_at:
-            task.deadline_at = stored_utc(task.deadline_at) + timedelta(days=7)
         task.version += 1
         # Блок имеет собственное состояние: завершение не удаляет его из
         # календаря и не зачёркивает будущие размещения другого экземпляра.
@@ -510,28 +569,78 @@ class PlannerService:
                 block.version += 1
         if actual_minutes:
             self.add_manual_session(context, task_id=task.id, started_at=self.now - timedelta(minutes=actual_minutes), ended_at=self.now, note="Введено при завершении задачи")
+        self._resolve_overdue_notifications(context, task.id)
         self._bump_revisions(context.workspace_id)
         self._record_event(context, action="completed", entity_type="task", entity_id=task.id)
         return task
 
+    def reopen_task(self, context: RequestContext, task_id: str) -> Task:
+        task = self.get_task(context, task_id)
+        if task.status not in {"COMPLETED", "ACTIVE"}:
+            raise ValidationError("Вернуть в активные можно только завершённую или активную задачу")
+        # Действие намеренно идемпотентно: старые данные и отдельные блоки могли
+        # остаться завершёнными, хотя сама задача уже активна. Повторное нажатие
+        # в таком состоянии должно вернуть интервал в план, а не дать ошибку.
+        if task.status == "COMPLETED":
+            task.status, task.completed_at, task.version = "ACTIVE", None, task.version + 1
+        for block in task.blocks:
+            if block.status == "COMPLETED":
+                block.status, block.completed_at, block.version = "CONFIRMED", None, block.version + 1
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="reopened", entity_type="task", entity_id=task.id)
+        return task
+
+    def _resolve_overdue_notifications(self, context: RequestContext, task_id: str) -> None:
+        """Закрывает предупреждения, утратившие смысл после завершения/архива."""
+        notifications = self.session.scalars(
+            select(Notification).where(
+                Notification.workspace_id == context.workspace_id,
+                Notification.task_id == task_id,
+                Notification.kind == "OVERDUE",
+                Notification.status != "RESOLVED",
+            )
+        ).all()
+        for notification in notifications:
+            notification.status = "RESOLVED"
+            notification.resolved_at = self.now
+
     def delete_task(self, context: RequestContext, task_id: str) -> None:
         task = self.get_task(context, task_id)
-        if self._task_has_children(context, task.id):
-            raise ConflictError("Сначала переместите или удалите чекпоинты этой задачи")
-        task.deleted_at = self.now
-        task.status = "ARCHIVED"
-        task.version += 1
+        descendants = self._task_tree(context, task.id)
+        for item in descendants:
+            item.deleted_at, item.status, item.version = self.now, "ARCHIVED", item.version + 1
+            self._resolve_overdue_notifications(context, item.id)
         self._bump_revisions(context.workspace_id)
-        self._record_event(context, action="deleted", entity_type="task", entity_id=task.id)
+        self._record_event(context, action="archived", entity_type="task", entity_id=task.id, details={"tree_size": len(descendants)})
 
     def restore_task(self, context: RequestContext, task_id: str) -> Task:
         task = self.get_task(context, task_id, include_deleted=True)
-        task.deleted_at = None
-        task.status = "ACTIVE"
-        task.version += 1
+        for item in self._task_tree(context, task.id):
+            if item.deleted_at is not None:
+                item.deleted_at, item.status, item.version = None, "ACTIVE", item.version + 1
         self._bump_revisions(context.workspace_id)
         self._record_event(context, action="restored", entity_type="task", entity_id=task.id)
         return task
+
+    def _task_tree(self, context: RequestContext, root_id: str) -> list[Task]:
+        """Возвращает корень и всех потомков: архив дерева не оставляет сирот."""
+        all_tasks = list(self.session.scalars(select(Task).where(Task.workspace_id == context.workspace_id)))
+        children: dict[str, list[Task]] = {}
+        for item in all_tasks:
+            if item.parent_task_id:
+                children.setdefault(item.parent_task_id, []).append(item)
+        result: list[Task] = []
+        pending = [root_id]
+        seen: set[str] = set()
+        by_id = {item.id: item for item in all_tasks}
+        while pending:
+            current_id = pending.pop()
+            if current_id in seen or current_id not in by_id:
+                continue
+            seen.add(current_id)
+            result.append(by_id[current_id])
+            pending.extend(child.id for child in children.get(current_id, []))
+        return result
 
     def set_default_availability(self, context: RequestContext, *, name: str, slots: list[tuple[int, int, int]]) -> AvailabilityProfile:
         workspace = self.get_workspace(context.workspace_id)
@@ -640,6 +749,48 @@ class PlannerService:
         self._recalculate_block_conflicts(context)
         self._record_event(context, action="archived", entity_type="fixed_event", entity_id=event.id)
 
+    def restore_fixed_event(self, context: RequestContext, event_id: str) -> FixedEventRule:
+        event = self.session.get(FixedEventRule, event_id)
+        if event is None or event.workspace_id != context.workspace_id or event.is_active:
+            raise NotFoundError("Неподвижное событие не найдено в архиве")
+        event.is_active, event.version = True, event.version + 1
+        self._bump_revisions(context.workspace_id)
+        self._recalculate_block_conflicts(context)
+        self._record_event(context, action="restored", entity_type="fixed_event", entity_id=event.id)
+        return event
+
+    def archive_view(self, context: RequestContext) -> dict[str, list[object]]:
+        return {
+            "tasks": list(self.session.scalars(select(Task).options(selectinload(Task.direction), selectinload(Task.goal), selectinload(Task.parent), selectinload(Task.children), selectinload(Task.blocks), selectinload(Task.labels).selectinload(TaskLabel.label)).where(Task.workspace_id == context.workspace_id, Task.deleted_at.is_not(None)).order_by(Task.deleted_at.desc()))),
+            "goals": list(self.session.scalars(select(Goal).options(selectinload(Goal.tasks)).where(Goal.workspace_id == context.workspace_id, Goal.deleted_at.is_not(None)).order_by(Goal.deleted_at.desc()))),
+            "directions": list(self.session.scalars(select(Direction).where(Direction.workspace_id == context.workspace_id, Direction.is_archived.is_(True)).order_by(Direction.name))),
+            "labels": list(self.session.scalars(select(Label).where(Label.workspace_id == context.workspace_id, Label.is_archived.is_(True)).order_by(Label.name))),
+            "fixed_events": list(self.session.scalars(select(FixedEventRule).where(FixedEventRule.workspace_id == context.workspace_id, FixedEventRule.is_active.is_(False)).order_by(FixedEventRule.title))),
+        }
+
+    def restore_archived_entity(self, context: RequestContext, entity_type: str, entity_id: str) -> object:
+        if entity_type == "task": return self.restore_task(context, entity_id)
+        if entity_type == "goal": return self.restore_goal(context, entity_id)
+        if entity_type == "direction": return self.restore_direction(context, entity_id)
+        if entity_type == "label": return self.restore_label(context, entity_id)
+        if entity_type == "fixed_event": return self.restore_fixed_event(context, entity_id)
+        raise NotFoundError("Тип сущности архива не найден")
+
+    def purge_archived_entity(self, context: RequestContext, entity_type: str, entity_id: str) -> None:
+        model_by_type = {"task": Task, "goal": Goal, "direction": Direction, "label": Label, "fixed_event": FixedEventRule}
+        model = model_by_type.get(entity_type)
+        if model is None:
+            raise NotFoundError("Тип сущности архива не найден")
+        entity = self.session.get(model, entity_id)
+        if entity is None or entity.workspace_id != context.workspace_id:
+            raise NotFoundError("Сущность архива не найдена")
+        archived = entity.deleted_at is not None if entity_type in {"task", "goal"} else (not entity.is_active if entity_type == "fixed_event" else entity.is_archived)
+        if not archived:
+            raise ValidationError("Окончательно удалить можно только сущность из архива")
+        self.session.delete(entity)
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="purged", entity_type=entity_type, entity_id=entity_id)
+
     def _local_to_utc(self, local_date: date, minute: int, timezone_name: str) -> datetime:
         local = datetime.combine(local_date, time.min, tzinfo=ZoneInfo(timezone_name)) + timedelta(minutes=minute)
         return local.astimezone(UTC)
@@ -682,8 +833,8 @@ class PlannerService:
         task = self.get_task(context, task_id)
         if task.status != "ACTIVE":
             raise ValidationError("Размещать можно только активную задачу")
-        if self._task_has_children(context, task.id):
-            raise ValidationError("В план можно добавлять только конечные чекпоинты")
+        if not self._task_can_schedule(context, task):
+            raise ValidationError("В план можно добавлять только чекпоинты или конечные задачи")
         workspace = self.get_workspace(context.workspace_id)
         start_at, end_at = ensure_utc(start_at, workspace.timezone), ensure_utc(end_at, workspace.timezone)
         if end_at <= start_at:
@@ -705,7 +856,7 @@ class PlannerService:
         self._record_event(context, action="created", entity_type="schedule_block", entity_id=block.id)
         return block
 
-    def update_block(self, context: RequestContext, block_id: str, *, start_at: datetime | None = None, end_at: datetime | None = None, is_pinned: bool | None = None, expected_version: int | None = None, allow_conflict: bool = True) -> ScheduleBlock:
+    def update_block(self, context: RequestContext, block_id: str, *, start_at: datetime | None = None, end_at: datetime | None = None, is_pinned: bool | None = None, expected_version: int | None = None, allow_conflict: bool = True, move_task_deadline: bool = False) -> ScheduleBlock:
         block = self.session.get(ScheduleBlock, block_id)
         if block is None or block.workspace_id != context.workspace_id or block.status != "CONFIRMED":
             raise NotFoundError("Блок расписания не найден")
@@ -731,6 +882,13 @@ class PlannerService:
         block.has_conflict, block.conflict_reason = conflict, ",".join(reasons) or None
         if is_pinned is not None:
             block.is_pinned = is_pinned
+        if move_task_deadline and block.task_id:
+            task = self.get_task(context, block.task_id)
+            task.deadline_at = proposed_end
+            overdue_notifications = self.session.scalars(select(Notification).where(Notification.workspace_id == context.workspace_id, Notification.task_id == task.id, Notification.kind == "OVERDUE", Notification.status != "RESOLVED")).all()
+            for notification in overdue_notifications:
+                notification.status = "RESOLVED"
+                notification.resolved_at = self.now
         block.version += 1
         self._bump_revisions(context.workspace_id)
         self._record_event(context, action="updated", entity_type="schedule_block", entity_id=block.id)
@@ -820,10 +978,27 @@ class PlannerService:
                 ScheduleBlock.start_at < range_end,
                 ScheduleBlock.end_at > range_start,
                 ScheduleBlock.status.in_(("CONFIRMED", "COMPLETED")),
+                # Архивная задача сохраняет блоки для восстановления, но не
+                # должна занимать место в текущем расписании.
+                Task.deleted_at.is_(None),
+                Task.status != "ARCHIVED",
             )
+            .join(Task, ScheduleBlock.task_id == Task.id)
             .order_by(ScheduleBlock.start_at)
         )
         blocks = list(self.session.scalars(block_statement))
+        deadline_tasks = self.session.scalars(
+            select(Task).where(
+                Task.workspace_id == context.workspace_id,
+                Task.status == "ACTIVE",
+                Task.deleted_at.is_(None),
+                Task.deadline_at.is_not(None),
+            )
+        ).all()
+        deadline_counts: dict[date, int] = {}
+        for task in deadline_tasks:
+            local_deadline = utc_to_local_date(task.deadline_at, timezone_name)
+            deadline_counts[local_deadline] = deadline_counts.get(local_deadline, 0) + 1
         days: list[dict] = []
         for offset in range(calendar_days):
             current = week_start + timedelta(days=offset)
@@ -834,7 +1009,7 @@ class PlannerService:
             day_blocks = [block for block in blocks if stored_utc(block.start_at) < day_end and stored_utc(block.end_at) > day_start]
             occupied = [TimeInterval(stored_utc(block.start_at), stored_utc(block.end_at)) for block in day_blocks] + [TimeInterval(event["start_at"], event["end_at"]) for event in events]
             free = subtract_intervals(availability, occupied)
-            days.append({"date": current, "availability": availability, "fixed_events": events, "blocks": day_blocks, "capacity_minutes": sum(item.minutes for item in availability), "free_minutes": sum(item.minutes for item in free)})
+            days.append({"date": current, "availability": availability, "fixed_events": events, "blocks": day_blocks, "deadline_count": deadline_counts.get(current, 0), "capacity_minutes": sum(item.minutes for item in availability), "free_minutes": sum(item.minutes for item in free)})
         return {"workspace": workspace, "week_start": week_start, "planning_revision": self.session.scalar(select(WorkspaceState.planning_revision).where(WorkspaceState.workspace_id == context.workspace_id)), "days": days}
 
     def create_plan(self, context: RequestContext, *, task_ids: list[str], horizon_start: datetime, horizon_end: datetime) -> PlannerRun:
@@ -845,8 +1020,8 @@ class PlannerService:
         tasks = [self.get_task(context, task_id) for task_id in task_ids]
         if any(task.status != "ACTIVE" for task in tasks):
             raise ValidationError("Планировать можно только активные задачи")
-        if any(self._task_has_children(context, task.id) for task in tasks):
-            raise ValidationError("Для автоплана выберите конечные чекпоинты, а не крупные задачи")
+        if any(not self._task_can_schedule(context, task) for task in tasks):
+            raise ValidationError("Для автоплана выберите чекпоинты или конечные задачи")
         if not tasks:
             raise ValidationError("Выберите хотя бы одну задачу")
         existing_blocks = self.session.scalars(select(ScheduleBlock).where(ScheduleBlock.workspace_id == context.workspace_id, ScheduleBlock.status == "CONFIRMED", ScheduleBlock.start_at < horizon_end, ScheduleBlock.end_at > horizon_start)).all()
@@ -921,6 +1096,8 @@ class PlannerService:
             task = self.get_task(context, task_id)
             if task.status != "ACTIVE":
                 raise ValidationError("Нельзя запускать завершённую, отменённую или архивную задачу")
+            if not self._task_can_schedule(context, task):
+                raise ValidationError("Фиксировать время можно только на чекпоинте или конечной задаче")
             direction_id = direction_id or task.direction_id
         if direction_id:
             self.get_direction(context, direction_id)
@@ -974,6 +1151,8 @@ class PlannerService:
         task = None
         if task_id:
             task = self.get_task(context, task_id)
+            if not self._task_can_schedule(context, task):
+                raise ValidationError("Фиксировать время можно только на чекпоинте или конечной задаче")
             direction_id = direction_id or task.direction_id
         if direction_id:
             self.get_direction(context, direction_id)
@@ -1078,6 +1257,9 @@ class PlannerService:
                 item = Notification(workspace_id=context.workspace_id, task_id=task.id, kind="OVERDUE", deduplication_key=key, title=f"Просрочена задача: {task.title}", body="Перепланируйте задачу или измените срок.")
                 self.session.add(item)
                 created.append(item)
+            elif existing.status != "OPEN":
+                existing.status = "OPEN"
+                existing.resolved_at = None
         state = self.session.scalar(select(WorkspaceState).where(WorkspaceState.workspace_id == context.workspace_id))
         if state:
             state.notification_scan_at = self.now

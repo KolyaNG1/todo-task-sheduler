@@ -172,6 +172,20 @@ def complete_goal(workspace_id: str, goal_id: str, service: PlannerService = Dep
     return goal_view(item, now=service.now)
 
 
+@router.post("/workspaces/{workspace_id}/goals/{goal_id}/reopen")
+def reopen_goal(workspace_id: str, goal_id: str, service: PlannerService = Depends(get_service)) -> dict:
+    item = service.reopen_goal(context_for(service, workspace_id), goal_id)
+    service.session.flush()
+    service.session.refresh(item, attribute_names=["tasks"])
+    return goal_view(item, now=service.now)
+
+
+@router.delete("/workspaces/{workspace_id}/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_goal(workspace_id: str, goal_id: str, service: PlannerService = Depends(get_service)) -> Response:
+    service.delete_goal(context_for(service, workspace_id), goal_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/workspaces/{workspace_id}/tasks")
 def list_tasks(workspace_id: str, include_completed: bool = False, include_deleted: bool = False, service: PlannerService = Depends(get_service)) -> list[dict]:
     context = context_for(service, workspace_id)
@@ -209,12 +223,17 @@ def complete_task(workspace_id: str, task_id: str, body: CompletionRequest, serv
 
 @router.post("/workspaces/{workspace_id}/tasks/{task_id}/{action}")
 def transition_task(workspace_id: str, task_id: str, action: str, service: PlannerService = Depends(get_service)) -> dict:
-    status_by_action = {"cancel": "CANCELLED", "archive": "ARCHIVED", "restore": "ACTIVE"}
+    status_by_action = {"cancel": "CANCELLED", "archive": "ARCHIVED", "restore": "ACTIVE", "reopen": "ACTIVE"}
     if action not in status_by_action:
         raise NotFoundError("Действие с задачей не найдено")
     context = context_for(service, workspace_id)
     if action == "restore":
         task = service.restore_task(context, task_id)
+    elif action == "reopen":
+        task = service.reopen_task(context, task_id)
+    elif action == "archive":
+        service.delete_task(context, task_id)
+        task = service.get_task(context, task_id, include_deleted=True)
     else:
         task = service.transition_task(context, task_id, status_by_action[action])
     service.session.flush()
@@ -224,6 +243,32 @@ def transition_task(workspace_id: str, task_id: str, action: str, service: Plann
 @router.delete("/workspaces/{workspace_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(workspace_id: str, task_id: str, service: PlannerService = Depends(get_service)) -> Response:
     service.delete_task(context_for(service, workspace_id), task_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/workspaces/{workspace_id}/archive")
+def archive(workspace_id: str, service: PlannerService = Depends(get_service)) -> dict:
+    context = context_for(service, workspace_id)
+    items = service.archive_view(context)
+    return {
+        "tasks": [task_view(item, now=service.now) for item in items["tasks"]],
+        "goals": [goal_view(item, now=service.now) for item in items["goals"]],
+        "directions": [direction_view(item) for item in items["directions"]],
+        "labels": [{"id": item.id, "name": item.name, "color": item.color, "direction_id": item.direction_id} for item in items["labels"]],
+        "fixed_events": [{"id": item.id, "title": item.title, "color": item.color, "weekday": item.weekday, "local_date": item.local_date.isoformat() if item.local_date else None, "start_minute": item.start_minute, "end_minute": item.end_minute} for item in items["fixed_events"]],
+    }
+
+
+@router.post("/workspaces/{workspace_id}/archive/{entity_type}/{entity_id}/restore")
+def restore_archived_entity(workspace_id: str, entity_type: str, entity_id: str, service: PlannerService = Depends(get_service)) -> dict:
+    entity = service.restore_archived_entity(context_for(service, workspace_id), entity_type, entity_id)
+    service.session.flush()
+    return {"id": entity.id, "entity_type": entity_type, "restored": True}
+
+
+@router.delete("/workspaces/{workspace_id}/archive/{entity_type}/{entity_id}", status_code=status.HTTP_204_NO_CONTENT)
+def purge_archived_entity(workspace_id: str, entity_type: str, entity_id: str, service: PlannerService = Depends(get_service)) -> Response:
+    service.purge_archived_entity(context_for(service, workspace_id), entity_type, entity_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -431,4 +476,4 @@ def interval_view(interval: TimeInterval) -> dict:
 
 
 def week_response(view: dict) -> dict:
-    return {"week_start": view["week_start"].isoformat(), "planning_revision": view["planning_revision"], "grid_step_minutes": view["workspace"].grid_step_minutes, "timezone": view["workspace"].timezone, "days": [{"date": day["date"].isoformat(), "capacity_minutes": day["capacity_minutes"], "free_minutes": day["free_minutes"], "availability": [interval_view(item) for item in day["availability"]], "fixed_events": [{**event, "local_date": event["local_date"].isoformat() if event["local_date"] else None, "start_at": event["start_at"].isoformat(), "end_at": event["end_at"].isoformat()} for event in day["fixed_events"]], "blocks": [block_view(item) for item in day["blocks"]]} for day in view["days"]]}
+    return {"week_start": view["week_start"].isoformat(), "planning_revision": view["planning_revision"], "grid_step_minutes": view["workspace"].grid_step_minutes, "timezone": view["workspace"].timezone, "days": [{"date": day["date"].isoformat(), "capacity_minutes": day["capacity_minutes"], "free_minutes": day["free_minutes"], "deadline_count": day["deadline_count"], "availability": [interval_view(item) for item in day["availability"]], "fixed_events": [{**event, "local_date": event["local_date"].isoformat() if event["local_date"] else None, "start_at": event["start_at"].isoformat(), "end_at": event["end_at"].isoformat()} for event in day["fixed_events"]], "blocks": [block_view(item) for item in day["blocks"]]} for day in view["days"]]}

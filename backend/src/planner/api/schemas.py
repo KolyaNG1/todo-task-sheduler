@@ -26,6 +26,7 @@ class TaskCreate(BaseModel):
     direction_id: str | None = None
     goal_id: str | None = None
     parent_task_id: str | None = None
+    is_checkpoint: bool | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     label_ids: list[str] = Field(default_factory=list)
     description: str | None = Field(default=None, max_length=10_000)
@@ -44,6 +45,7 @@ class TaskUpdate(BaseModel):
     direction_id: str | None = None
     goal_id: str | None = None
     parent_task_id: str | None = None
+    is_checkpoint: bool | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     label_ids: list[str] | None = None
     description: str | None = Field(default=None, max_length=10_000)
@@ -173,3 +175,4 @@ class BlockUpdate(BaseModel):
     is_pinned: bool | None = None
     expected_version: int | None = Field(default=None, ge=1)
     allow_conflict: bool = True
+    move_task_deadline: bool = False

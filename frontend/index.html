@@ -6,7 +6,7 @@
     <meta name="description" content="Личный планировщик недели" />
     <title>Планировщик недели</title>
     <link rel="icon" type="image/png" href="assets/palm-avatar.png?v=1" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260912-4" />
   </head>
   <body>
     <div class="app-shell">
@@ -21,6 +21,7 @@
           <button class="nav-item" data-section="directions"><span>▤</span> Направления</button>
           <button class="nav-item" data-section="goals"><span>◎</span> Цели</button>
           <button class="nav-item" data-section="results"><span>◷</span> Итоги</button>
+          <button class="nav-item" data-section="archive"><span>▱</span> Архив</button>
           <button class="nav-item" data-section="settings"><span>⚙</span> Настройки</button>
         </nav>
         <div class="nav-spacer"></div>
@@ -34,11 +35,20 @@
             <p class="eyebrow">АКТИВНЫЙ СПИСОК</p>
             <h1>Задачи <span id="task-count">0</span></h1>
           </div>
-          <button class="icon-button" id="add-task" title="Добавить задачу" aria-label="Добавить задачу">+</button>
-          <button class="panel-toggle" id="toggle-task-panel" title="Скрыть список задач" aria-label="Скрыть список задач">▥</button>
+          <div class="panel-heading-actions">
+            <button class="icon-button" id="add-task" title="Добавить задачу" aria-label="Добавить задачу">+</button>
+            <button class="panel-toggle" id="toggle-task-panel" title="Скрыть список задач" aria-label="Скрыть список задач">▥</button>
+          </div>
         </div>
         <label class="search"><span>⌕</span><input id="task-search" type="search" placeholder="Найти задачу" /></label>
-        <div class="filters" role="tablist" aria-label="Фильтр задач">
+        <div class="kind-filters" role="tablist" aria-label="Тип задач">
+          <span>Тип</span>
+          <button class="kind-filter active" data-kind-filter="all">Все</button>
+          <button class="kind-filter" data-kind-filter="tasks">Задачи</button>
+          <button class="kind-filter" data-kind-filter="checkpoints">Чекпоинты</button>
+          <button class="kind-filter" data-kind-filter="groups">Группы</button>
+        </div>
+        <div class="filters" role="tablist" aria-label="Состояние задач">
           <button class="filter active" data-filter="all">Все</button>
           <button class="filter" data-filter="unplanned">Не в плане</button>
           <button class="filter" data-filter="overdue">Просрочены</button>
@@ -70,14 +80,17 @@
             <button class="button secondary" id="edit-worktime">Рабочее время</button>
             <button class="button secondary" id="record-worktime">Зафиксировать работу</button>
             <button class="button secondary" id="add-event">+ Событие</button>
+            <button class="button secondary" id="show-overview" hidden>Показать сводку</button>
             <button class="button secondary" id="show-plan" hidden>Показать вариант</button>
             <button class="button primary" id="quick-task">+ Задача</button>
           </div>
         </header>
 
-        <section class="daily-success" id="daily-success" aria-live="polite" hidden></section>
-
-        <section class="goal-strip" id="goal-strip" aria-label="Активные цели" hidden></section>
+        <div class="plan-overview" id="plan-overview">
+          <button class="panel-toggle overview-close" id="hide-overview" title="Скрыть сводку" aria-label="Скрыть всю сводку">×</button>
+          <section class="daily-success" id="daily-success" aria-live="polite" hidden></section>
+          <section class="goal-strip" id="goal-strip" aria-label="Активные цели" hidden></section>
+        </div>
 
         <section class="week-board" aria-label="Недельное расписание">
           <div class="time-axis" id="time-axis"></div>
@@ -103,10 +116,10 @@
       <form method="dialog" id="modal-form">
         <div class="modal-header"><div><p class="eyebrow" id="modal-kicker">ДЕЙСТВИЕ</p><h2 id="modal-title">Заголовок</h2></div><button type="button" class="icon-button" id="modal-close" aria-label="Закрыть">×</button></div>
         <div id="modal-content"></div>
-        <div class="modal-actions"><button type="button" class="button ghost" id="modal-cancel">Отмена</button><button class="button primary" id="modal-submit" value="default">Сохранить</button></div>
+        <div class="modal-actions"><button type="button" class="button danger" id="modal-delete" hidden>Удалить задачу</button><span class="modal-actions-spacer"></span><button type="button" class="button ghost" id="modal-cancel">Отмена</button><button class="button primary" id="modal-submit" value="default">Сохранить</button></div>
       </form>
     </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" id="toast-close" aria-label="Закрыть уведомление">×</button></div>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=20260912-4"></script>
   </body>
 </html>

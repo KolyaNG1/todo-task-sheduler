@@ -8,7 +8,7 @@ title: "Устранить сбой после удаления задачи п�
 slug: "ustranit_sboy_posle_udaleniya_zadachi_pri_obnovlenii_kalenda"
 status: done
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-09-12
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_019"]

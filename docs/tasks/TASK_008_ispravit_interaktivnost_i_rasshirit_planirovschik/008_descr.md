@@ -8,7 +8,7 @@ title: "Исправить интерактивность и расширить 
 slug: "ispravit_interaktivnost_i_rasshirit_planirovschik"
 status: done
 created: 2026-09-09
-updated: 2026-09-11
+updated: 2026-09-12
 parent_task: "TASK_007"
 depends_on: []
 related_tasks: []

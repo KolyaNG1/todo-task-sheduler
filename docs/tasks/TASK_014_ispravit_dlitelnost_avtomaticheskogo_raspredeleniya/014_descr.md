@@ -8,7 +8,7 @@ title: "Исправить длительность автоматическог
 slug: "ispravit_dlitelnost_avtomaticheskogo_raspredeleniya"
 status: done
 created: 2026-09-09
-updated: 2026-09-11
+updated: 2026-09-12
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_013"]

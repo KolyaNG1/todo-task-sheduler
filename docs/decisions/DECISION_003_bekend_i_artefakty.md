@@ -4,7 +4,7 @@ decision_id: "DEC_003"
 title: "Клиентонезависимый бэкенд и переносимые артефакты"
 status: accepted
 created: 2026-09-08
-updated: 2026-09-11
+updated: 2026-09-12
 summary: "Все клиенты вызывают общий прикладной слой, а SQLite и изменяемые файлы живут в одном переносимом каталоге артефактов."
 related_tasks: ["TASK_003"]
 related_knowledge: ["../knowledge/arhitektura_bekenda.md"]

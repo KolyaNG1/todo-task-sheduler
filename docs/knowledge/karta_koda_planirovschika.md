@@ -2,9 +2,9 @@
 doc_type: knowledge
 title: "Карта кода планировщика"
 status: active
-updated: 2026-09-11
+updated: 2026-09-12
 summary: "Навигация по файлам, слоям, данным и основным потокам планировщика для быстрого поиска причин ошибок."
-source_tasks: ["TASK_024", "TASK_025", "TASK_027"]
+source_tasks: ["TASK_024", "TASK_025", "TASK_027", "TASK_028", "TASK_029", "TASK_030", "TASK_031"]
 source_pages: ["../../backend/src/planner/main.py", "../../backend/src/planner/application/services.py", "../../backend/src/planner/domain/planning.py", "../../backend/src/planner/api/router.py", "../../backend/src/planner/api/schemas.py", "../../backend/src/planner/api/presenters.py", "../../backend/src/planner/infrastructure/models.py", "../../frontend/index.html", "../../frontend/app.js", "../../frontend/styles.css"]
 related_knowledge: ["audit_kachestva_i_masshtabiruemosti_planirovschika.md", "plan_refaktoringa_planirovschika.md", "arhitektura_bekenda.md", "informatsionnaya_arkhitektura_interfeysa.md"]
 ---
@@ -86,7 +86,8 @@ backend/api/presenters.py → словарь JSON → браузер → общ�
 | `initialize_workspace`, `get_workspace`, `get_context` | Начальная рабочая область и контекст. |
 | `list/create/get/update/archive_direction` | Направления. |
 | `list/create/get/update/archive_label`, `_get_labels` | Теги и проверка их принадлежности. |
-| `create/get/list/update/transition/complete_task` | Задачи, дерево «родитель → чекпоинты», статусы, завершение и повторение. |
+| `create/get/list/update/transition/complete_task`, `_task_has_confirmed_block` | Задачи, дерево «родитель → чекпоинты», статусы, завершение и повторение; запрет превращать размещённую работу в контейнер. |
+| `create/get/list/update/complete/reopen/delete_goal` | Цели, их статус и безопасное удаление: `delete_goal()` отвязывает задачи вместо каскадного удаления. |
 | `set/default_availability`, `set_date_availability`, `availability_for_date` | Шаблон и исключения доступного времени. |
 | `create/update/archive_fixed_event`, `fixed_events_for_date` | Фиксированное расписание. |
 | `create/update/cancel_block`, `_find_block_conflict` | Ручные блоки расписания и конфликты. |
@@ -207,6 +208,13 @@ Workspace
 | Сессия или отчёт отстают | методы сессий → открытый `WorkSessionSegment` → `daily_report()` → `renderDailySuccess()`. |
 | Не виден интервал работы в задаче | `list_tasks_with_sessions()` → `/work-sessions/by-task` → `setSessionView()` → `sessionIntervals()`. |
 | Родительская задача попала в план | `_task_has_children()` → `create_block()`/`create_plan()` → поле `is_leaf` в `task_view()` → отключённые действия карточки. |
+| Не удаётся добавить чекпоинт к задаче | `_task_has_confirmed_block()` в `create_task()`/`update_task()`: сначала снять подтверждённые блоки родителя. |
+| В общем списке неправильно выглядит дерево | `renderTasks()` и раздел «Все задачи» должны быть плоскими; отступ допустим только в `renderGoalDetail()` и `.goal-task-row`. |
+| Цель нельзя вернуть или удалить | маршруты `/goals/{id}/reopen` и `DELETE /goals/{id}` → `reopen_goal()`/`delete_goal()` → `changeGoalStatus()`/`deleteGoal()` в клиенте. |
+| Кнопки цели вылезают из карточки | разметка `goal-card-actions` в разделе целей → CSS `.goal-card-actions` с тремя равными колонками. |
+| Список задач растягивает страницу | размеры `.app-shell`/`.task-panel` → `.task-list` с независимым `overflow-y` → фиксированная панель выбора. |
+| Ручной перенос оставил просроченный срок | `BlockUpdate.move_task_deadline` → `update_block()` → локальная функция `updateTaskDeadlineLocally()` в обработчиках перетаскивания и формы блока. |
+| Нет удаления в форме или в дочерней задаче | `#modal-delete` и `deleteTaskFromModal()` → `delete-goal-task` в `renderGoalDetail()` → мягкое `DELETE /tasks/{id}`. |
 | Сервер падает на обычном вводе | журнал uvicorn → `IntegrityError` → уникальные ограничения моделей → обработчик ошибок `main.py`. |
 | Новая база не запускается | `migrations/versions` → `bootstrap.py` → `manifest.json` → фактическая схема SQLite. |
 | Браузер показывает старое исправление | процессы/порты → принудительное обновление → версии `styles.css`/`app.js` → статическая раздача. |
@@ -262,6 +270,10 @@ AUD-001. Сначала нужен отдельный тест на времен
 - **Задача-основание:** [TASK_024 — Провести полный аудит кода и масштабируемости планировщика](../tasks/TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md)
 - **Задача-основание:** [TASK_025 — Переработать планировщик и закрыть аудит](../tasks/TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
 - **Задача-основание:** [TASK_027 — Расширить задачи и историю работы планировщика](../tasks/TASK_027_rasshirit_zadachi_i_istoriyu_raboty_planirovschika/027_descr.md)
+- **Задача-основание:** [TASK_028 — Переработать интерфейс целей и иерархии задач](../tasks/TASK_028_pererabotat_interfeys_tseley_i_ierarhii_zadach/028_descr.md)
+- **Задача-основание:** [TASK_029 — Добавить удаление и повторное открытие целей](../tasks/TASK_029_dobavit_udalenie_i_povtornoe_otkrytie_tseley/029_descr.md)
+- **Задача-основание:** [TASK_030 — Исправить переполнение кнопок в карточках целей](../tasks/TASK_030_ispravit_perepolnenie_knopok_v_kartochkah_tseley/030_descr.md)
+- **Задача-основание:** [TASK_031 — Исправить прокрутку и жизненный цикл задач в интерфейсе](../tasks/TASK_031_ispravit_prokrutku_i_zhiznennyy_tsikl_zadach_v_interfeyse/031_descr.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [План поэтапной переработки планировщика](plan_refaktoringa_planirovschika.md)
 - **Связанная страница решения:** [DEC_004 — Поэтапная модульная переработка планировщика](../decisions/DECISION_004_poetapnaya_modulnaya_pererabotka_planirovschika.md)
@@ -277,3 +289,9 @@ AUD-001. Сначала нужен отдельный тест на времен
 - 2026-09-10 — создано задачей `TASK_024`.
 - 2026-09-11 — дополнено задачей `TASK_027`: дерево задач, история сессий и
   карточки целей.
+- 2026-09-11 — дополнено задачей `TASK_028`: сворачиваемая форма пункта цели,
+  компактная витрина целей и плоский общий список задач.
+- 2026-09-11 — дополнено задачей `TASK_029`: обратимый статус цели и её
+  безопасное удаление без удаления задач.
+- 2026-09-11 — дополнено задачей `TASK_030`: действия карточки цели защищены
+  от горизонтального переполнения.

@@ -33,7 +33,7 @@ class Container:
     def _apply_compatibility_migrations(self) -> None:
         """Дополняет локальную SQLite обратно совместимо и с резервной копией."""
         required_columns = {
-            "tasks": {"repeat_rule", "color", "goal_id", "goal_position", "parent_task_id", "child_position"},
+            "tasks": {"repeat_rule", "color", "goal_id", "goal_position", "parent_task_id", "child_position", "is_checkpoint"},
             "schedule_blocks": {"planner_run_id", "planner_proposal_id", "completed_at", "skipped_at"},
             "work_sessions": {"direction_id"},
         }
@@ -58,6 +58,7 @@ class Container:
                     "goal_position": "INTEGER NOT NULL DEFAULT 0",
                     "parent_task_id": "VARCHAR(36)",
                     "child_position": "INTEGER NOT NULL DEFAULT 0",
+                    "is_checkpoint": "BOOLEAN NOT NULL DEFAULT 0",
                 },
                 "schedule_blocks": {
                     "planner_run_id": "VARCHAR(36)",

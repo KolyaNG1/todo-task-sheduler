@@ -77,6 +77,8 @@ def task_view(item: Task, *, now: datetime | None = None) -> dict:
         "child_position": item.child_position,
         "child_count": len(children),
         "is_leaf": not children,
+        "is_checkpoint": item.is_checkpoint,
+        "can_schedule": item.is_checkpoint or not children,
         "labels": [{"id": link.label.id, "name": link.label.name, "color": link.label.color} for link in item.labels],
         "deadline_at": iso(item.deadline_at),
         "priority": item.priority,

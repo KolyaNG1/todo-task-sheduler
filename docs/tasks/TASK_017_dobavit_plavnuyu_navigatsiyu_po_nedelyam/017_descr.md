@@ -8,7 +8,7 @@ title: "Добавить плавную навигацию по неделям"
 slug: "dobavit_plavnuyu_navigatsiyu_po_nedelyam"
 status: done
 created: 2026-09-10
-updated: 2026-09-11
+updated: 2026-09-12
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_016"]

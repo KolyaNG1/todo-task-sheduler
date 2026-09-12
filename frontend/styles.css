@@ -17,21 +17,23 @@
 .navigation,.task-panel{position:relative}.panel-toggle{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid transparent;border-radius:8px;color:var(--muted);background:transparent;font-size:17px;line-height:1}.panel-toggle:hover,.panel-toggle:focus-visible{border-color:var(--line);color:var(--ink);background:var(--surface)}.navigation>#toggle-nav-panel{position:absolute;top:18px;right:12px}.panel-heading>#toggle-task-panel{margin-left:auto}.task-sort{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 20px 0;color:var(--muted);font-size:11px;font-weight:700}.task-sort select{padding:4px 6px;border:1px solid var(--line);border-radius:6px;color:var(--ink);background:var(--surface);font:inherit}.panel-reveals{position:fixed;top:10px;left:8px;z-index:35;display:flex;gap:6px}.panel-reveals .reveal{border-color:var(--line);background:var(--surface);box-shadow:var(--shadow)}.app-shell.nav-collapsed{grid-template-columns:340px minmax(620px,1fr)}.app-shell.task-collapsed{grid-template-columns:192px minmax(620px,1fr)}.app-shell.nav-collapsed.task-collapsed{grid-template-columns:minmax(620px,1fr)}.app-shell.nav-collapsed .task-panel,.app-shell.task-collapsed .navigation{border-right:1px solid var(--line)}
 @media(max-width:1280px){.app-shell.nav-collapsed{grid-template-columns:300px minmax(590px,1fr)}.app-shell.task-collapsed{grid-template-columns:68px minmax(780px,1fr)}.app-shell.nav-collapsed.task-collapsed{grid-template-columns:minmax(780px,1fr)}}
 .goal-card-progress,.goal-progress{display:grid;gap:5px;margin:10px 0;color:var(--muted);font-size:11px}.goal-card-progress i,.goal-progress i{display:block;height:6px;overflow:hidden;border-radius:8px;background:var(--line)}.goal-card-progress b,.goal-progress b{display:block;height:100%;border-radius:inherit;background:var(--blue)}.goal-progress{min-width:180px;margin:0;text-align:right}.goal-progress strong{color:var(--blue);font:700 25px "JetBrains Mono",monospace}.goal-detail-layout{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(420px,1.5fr);gap:16px;align-items:start}.goal-sequence h3,.goal-detail-layout h3{margin:3px 0}.goal-task-list{display:grid;gap:7px;margin:16px 0}.goal-task-row{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:8px}.goal-task-row small{display:block;color:var(--muted);font-size:11px}.goal-order{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;color:var(--blue);background:var(--blue-soft);font:700 11px "JetBrains Mono",monospace}.goal-add-task{display:flex;gap:8px}.goal-add-task select{min-width:0;flex:1;padding:8px;border:1px solid var(--line);border-radius:7px;color:var(--ink);background:var(--surface)}
-.goal-new-task{display:grid;gap:10px;margin-top:16px;padding:14px;border:1px dashed color-mix(in srgb,var(--blue) 55%,var(--line));border-radius:9px;background:color-mix(in srgb,var(--blue-soft) 26%,var(--surface))}.goal-new-task .eyebrow{margin:0}.task-delete:hover{border-color:var(--danger);color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--surface))}
+.goal-new-task{display:grid;gap:10px;max-width:620px;margin-top:16px;padding:14px;border:1px dashed color-mix(in srgb,var(--blue) 55%,var(--line));border-radius:9px;background:color-mix(in srgb,var(--blue-soft) 26%,var(--surface))}.goal-new-task .eyebrow{margin:0}.goal-new-task-heading,.goal-sequence-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.goal-sequence-head .button{flex:none}.task-delete:hover{border-color:var(--danger);color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,var(--surface))}
+.button.danger{border-color:color-mix(in srgb,var(--danger) 45%,var(--line));color:var(--danger);background:color-mix(in srgb,var(--danger) 8%,var(--surface))}.goal-lifecycle-actions{display:flex;flex-wrap:wrap;gap:7px;padding-top:4px;border-top:1px solid var(--line)}
+.goal-card-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.goal-card-actions .button{min-width:0;padding-inline:7px;overflow-wrap:anywhere;text-align:center}
 
 /* Короткий рабочий промежуток имеет высоту 16 px: крестик должен помещаться
    целиком, а не обрезаться контейнером. */
 .availability-action{top:1px;right:1px;width:14px;height:14px;border-radius:4px;font-size:13px;line-height:12px}
 
 /* Дерево задач, фокус целей и два вида истории фактической работы. */
-.task-card,.full-task,.goal-task-row{margin-left:calc(var(--task-depth, 0) * 12px)}
+.goal-task-row{margin-left:calc(var(--task-depth, 0) * 12px)}
 .task-card.task-parent{background:color-mix(in srgb,var(--blue-soft) 32%,var(--surface))}
 .full-task.task-parent{border-style:dashed;background:color-mix(in srgb,var(--blue-soft) 25%,var(--surface))}
-.goal-strip{display:grid;gap:8px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--surface)}
-.goal-strip-title{display:flex;align-items:center;gap:7px}.goal-strip-title .button{margin-left:auto;padding:3px 5px;color:var(--blue);font-size:11px}
-.goal-strip-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
-.goal-mini-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:8px;border:1px solid var(--line);border-left:4px solid var(--goal-color);border-radius:7px;color:var(--ink);background:var(--surface);text-align:left}.goal-mini-card:hover{border-color:var(--goal-color);background:var(--blue-soft)}
-.goal-mini-card span{overflow:hidden;font-weight:700;text-overflow:ellipsis;white-space:nowrap}.goal-mini-card strong{color:var(--goal-color);font:700 12px "JetBrains Mono",monospace}.goal-mini-card i{grid-column:1/-1;height:4px;overflow:hidden;border-radius:4px;background:var(--line)}.goal-mini-card i b{display:block;height:100%;border-radius:inherit;background:var(--goal-color)}.goal-mini-card small{grid-column:1/-1;color:var(--muted);font-size:10px}
+.goal-strip{display:grid;justify-content:start;gap:7px;padding:10px 20px 6px;border-bottom:0;background:transparent}
+.goal-strip-title{display:flex;align-items:center;gap:7px}.goal-strip-title .button{padding:3px 5px;color:var(--blue);font-size:11px}
+.goal-strip-list{display:flex;flex-wrap:wrap;gap:8px}
+.goal-mini-card{display:flex;flex-direction:column;justify-content:space-between;width:116px;min-height:92px;padding:10px;border:1px solid var(--line);border-top:4px solid var(--goal-color);border-radius:9px;color:var(--ink);background:var(--surface);text-align:left}.goal-mini-card:hover{border-color:var(--goal-color);background:var(--blue-soft)}
+.goal-mini-card span{display:-webkit-box;overflow:hidden;font-size:12px;font-weight:700;line-height:1.25;-webkit-box-orient:vertical;-webkit-line-clamp:3}.goal-mini-card strong{align-self:flex-end;color:var(--goal-color);font:700 20px "JetBrains Mono",monospace}
 .report-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.view-toggle{display:flex;gap:4px}.view-toggle .button{padding:5px 8px;font-size:11px}
 .task-session-list{display:grid;gap:8px}.task-session-group,.session-period{border:1px solid var(--line);border-radius:7px;background:var(--surface)}.task-session-group summary,.session-period summary{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;list-style:none}.task-session-group summary::-webkit-details-marker,.session-period summary::-webkit-details-marker{display:none}.task-session-group summary{padding:10px}.task-session-group summary small{display:block;color:var(--muted);font-size:11px}.task-session-periods{display:grid;gap:6px;padding:0 10px 10px}.session-period summary{padding:7px 8px;color:var(--muted);font-size:11px}.session-period summary strong{color:var(--ink)}.session-segments{display:grid;gap:3px;padding:0 8px 8px;color:var(--muted);font:11px "JetBrains Mono",monospace}.session-segments span{display:flex;justify-content:space-between;gap:8px}.session-segments b{color:var(--ink)}
 
@@ -42,3 +44,55 @@
 .day-column{min-height:calc(var(--header-h) + var(--quarter-h) * 64)}
 .time-label{height:calc(var(--quarter-h) * 2)}
 .time-label-end{height:0;transform:translateY(-7px)}
+
+/* Каркас не растягивается списком задач: у списка и расписания свои скроллы. */
+.app-shell{height:100vh;min-height:0;overflow:hidden}
+.navigation,.task-panel,.workspace{height:100vh;min-height:0}
+.task-panel{overflow:hidden}
+.task-list{overflow-y:auto;overscroll-behavior:contain}
+.page-view{height:100vh;min-height:0;overscroll-behavior:contain}
+
+/* Кнопки возврата скрытых панелей не должны перекрывать заголовок календаря. */
+.panel-reveals{top:auto;bottom:14px;left:12px;z-index:34}
+
+/* Цели остаются компактными и не ломают действия в узкой карточке. */
+.goal-mini-card.completed{opacity:.68}
+.direction-card.goal-card h3{font-size:18px;line-height:1.25}
+.direction-card.goal-card p{font-size:12px}
+.goal-card-actions .button{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px}
+
+/* Закрепление блока не рисует служебную точку поверх его названия. */
+.schedule-block.pinned:after{content:none}
+
+/* Воскресенье всегда выделено нейтральным тёмным тоном, а текущий день сохраняет свою подсветку. */
+.day-header.sunday:not(.today){background:color-mix(in srgb,var(--surface) 72%,var(--ink));box-shadow:inset 0 2px 0 color-mix(in srgb,var(--ink) 32%,transparent)}
+
+/* Сводка дня и цели делят верхнюю строку, поэтому календарь начинается выше. */
+.plan-overview{position:relative;display:grid!important;grid-template-columns:minmax(0,1fr) 430px;grid-template-rows:auto;align-items:stretch;border-bottom:1px solid var(--line);background:var(--surface)}
+.plan-overview[hidden]{display:none!important}
+.plan-overview>.overview-close{position:absolute;top:8px;left:8px;z-index:4}
+.plan-overview>.daily-success{grid-column:1;grid-row:1;min-width:0;padding-left:48px;border-bottom:0}
+.plan-overview>.goal-strip{grid-column:2;grid-row:1;min-width:0;min-height:100%;padding:10px 14px 10px 48px;border-left:1px solid var(--line)}
+.plan-overview .goal-strip-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.plan-overview .goal-mini-card{width:auto;min-height:74px;padding:8px}
+.plan-overview .goal-mini-card strong{font-size:17px}
+#plan-workspace>.plan-overview{flex:none}
+
+/* Чекпоинт — явный признак задачи, а выбор родителя раскрывается только по запросу. */
+.checkpoint-switch{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
+.checkpoint-parent{display:grid;gap:8px;padding:9px;border-left:3px solid var(--blue);border-radius:0 7px 7px 0;background:color-mix(in srgb,var(--blue-soft) 28%,var(--surface));font-size:12px}
+.checkpoint-parent details{display:grid;gap:6px}.checkpoint-parent summary{cursor:pointer;color:var(--blue);font-weight:700}
+.parent-choice-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:5px;max-height:190px;overflow:auto;padding-top:6px}
+.parent-choice{display:grid;gap:2px;padding:7px 8px;border:1px solid var(--line);border-radius:6px;color:var(--ink);background:var(--surface);text-align:left;font:inherit;font-weight:700;cursor:pointer}.parent-choice small{color:var(--muted);font-size:10px;font-weight:400}.parent-choice:hover{border-color:var(--blue);background:var(--blue-soft)}
+
+.goal-task-title{display:flex;align-items:center;gap:4px}.tree-toggle,.tree-toggle-placeholder{display:inline-grid;place-items:center;width:18px;height:18px;flex:none}.tree-toggle{padding:0;border:0;border-radius:4px;color:var(--muted);background:transparent;cursor:pointer;font-size:14px}.tree-toggle:hover{color:var(--ink);background:var(--blue-soft)}.completed-title{text-decoration:line-through;opacity:.75}
+.task-card.completed,.catalog-task.completed{opacity:.72}.task-card.completed .task-name,.catalog-task.completed .catalog-task-copy strong{text-decoration:line-through}
+.archive-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}.archive-tabs .button span{display:inline-grid;min-width:17px;height:17px;place-items:center;margin-left:3px;border-radius:9px;background:color-mix(in srgb,var(--blue) 14%,transparent);font-size:10px}.archive-list{display:grid;gap:8px}.archive-item{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:11px;align-items:center;padding:13px;border:1px solid var(--line);border-radius:9px;background:var(--surface)}.archive-item p{margin:3px 0 0;color:var(--muted);font-size:12px}
+@media(max-width:1120px){.plan-overview{grid-template-columns:minmax(0,1fr) 360px}.plan-overview .goal-strip-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* У крестика формы всегда та же компактная геометрия, что и у остальных иконок. */
+.modal-header #modal-close{flex:none;width:34px;height:34px}
+.modal-actions-spacer{margin-right:auto}
+
+/* Фильтры, форма задачи и карточки каталога. */
+.panel-heading-actions{display:flex;align-items:center;gap:4px;flex:none}.panel-heading-actions .panel-toggle{margin:0}.kind-filters{display:flex;align-items:center;flex-wrap:wrap;gap:3px;padding:0 20px 8px}.kind-filters>span{margin-right:3px;color:var(--muted);font-size:10px;font-weight:700}.kind-filter{padding:4px 6px;border:1px solid transparent;border-radius:5px;color:var(--muted);background:transparent;font-size:10px}.kind-filter.active{border-color:var(--line);color:var(--ink);background:var(--surface);font-weight:700}.filters{padding-top:0}.day-heading{display:flex;align-items:center;justify-content:space-between;gap:5px}.deadline-badge{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:10px;color:#fff;background:var(--danger);font:700 10px "JetBrains Mono",monospace}.fixed-event{cursor:default}.fixed-event:hover .block-actions,.fixed-event:focus-within .block-actions{opacity:1}.compact-block{overflow:visible;padding-top:1px;padding-bottom:1px}.compact-block strong{position:relative;z-index:1;padding-right:0;overflow:hidden;line-height:14px;white-space:nowrap;text-overflow:ellipsis}.compact-block .block-time{display:none}.compact-block .block-actions{top:-20px;right:1px;opacity:0;filter:drop-shadow(0 1px 2px #0006)}.compact-block:hover .block-actions,.compact-block:focus-within .block-actions{opacity:1}.form-section{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--blue-soft) 14%,var(--surface))}.form-section h3{margin:0;font-size:13px}.task-options{display:grid;gap:8px;font-size:12px}.task-form .inline-fields .field input[type="color"]{width:100%;height:37px}.catalog-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin:-8px 0 14px}.catalog-toolbar .button{padding:6px 9px;font-size:11px}.task-catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}.catalog-task{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:102px;padding:13px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.catalog-task.overdue{border-color:var(--danger)}.catalog-task-copy>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.catalog-task-copy strong{font-size:15px}.catalog-task-copy p{margin:4px 0 0;color:var(--muted);font-size:11px;line-height:1.4}.catalog-task-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:92px}.catalog-task .task-color{min-height:74px}

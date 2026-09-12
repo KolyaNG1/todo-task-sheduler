@@ -50,6 +50,7 @@ def test_weekly_flow_from_direction_to_plan_and_timer(tmp_path) -> None:
         assert monday["capacity_minutes"] == 180
         assert len(monday["fixed_events"]) == 1
         assert len(monday["blocks"]) == 2
+        assert monday["deadline_count"] == 1
 
         started = client.post(f"/api/v1/workspaces/{workspace_id}/work-sessions/start", json={"task_id": task_id})
         assert started.status_code == 201
@@ -113,7 +114,7 @@ def test_planned_task_is_not_planned_twice_and_catalogs_are_editable(tmp_path) -
         assert moved.status_code == 200
         repeated = client.post(f"/api/v1/workspaces/{workspace_id}/tasks/{task_id}/complete", json={})
         assert repeated.status_code == 200
-        assert repeated.json()["status"] == "ACTIVE"
+        assert repeated.json()["status"] == "COMPLETED"
         week_after_completion = client.get(f"/api/v1/workspaces/{workspace_id}/week", params={"week_start": "2030-01-07"})
         assert week_after_completion.status_code == 200
         assert any(block["id"] == first.json()["id"] for day in week_after_completion.json()["days"] for block in day["blocks"])

@@ -117,6 +117,9 @@ class Task(IdentityMixin, Base):
     # Планировать разрешается только конечные пункты без потомков.
     parent_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     child_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Чекпоинт — явное свойство работы, независимое от позиции в дереве.
+    # Поэтому промежуточный узел при необходимости тоже может быть действием.
+    is_checkpoint: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Порядок выполнения в рамках одной цели. У задачи может быть только одна
     # цель, поэтому отдельная таблица связи здесь не нужна.
     goal_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
