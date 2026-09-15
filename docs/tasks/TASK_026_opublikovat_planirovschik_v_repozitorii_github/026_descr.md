@@ -8,7 +8,7 @@ title: "Опубликовать планировщик в удалённом р
 slug: "opublikovat_planirovschik_v_repozitorii_github"
 status: done
 created: 2026-09-11
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_025"]

@@ -14,10 +14,10 @@ Codex CLI используют одинаковые прикладные сер�
 
 ```powershell
 python -m pip install --no-build-isolation -e ".[dev]"
-python -m uvicorn planner.main:app --reload --port 8000
+python -m uvicorn planner.main:app --reload --port 8100
 ```
 
-После запуска документация методов доступна на `http://127.0.0.1:8000/docs`.
+После запуска документация методов доступна на `http://127.0.0.1:8100/docs`.
 База создаётся в `../artifacts/database/planner.sqlite3`. Для хранения данных в
 другом месте задайте переменную `PLANNER_ARTIFACTS_DIR` абсолютным путём.
 

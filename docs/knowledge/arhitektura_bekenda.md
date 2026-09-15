@@ -2,11 +2,11 @@
 doc_type: knowledge
 title: "Архитектура бэкенда планировщика"
 status: active
-updated: 2026-09-12
+updated: 2026-09-16
 summary: "Клиентонезависимый прикладной слой, нормализованная SQLite и переносимый каталог артефактов поддерживают календарь, жизненный цикл задач, фактическое время и вычисляемые итоги."
-source_tasks: ["TASK_003", "TASK_005", "TASK_007", "TASK_008", "TASK_010", "TASK_011", "TASK_027", "TASK_028", "TASK_029", "TASK_031", "TASK_033", "TASK_034", "TASK_037", "TASK_038"]
+source_tasks: ["TASK_003", "TASK_005", "TASK_007", "TASK_008", "TASK_010", "TASK_011", "TASK_027", "TASK_028", "TASK_029", "TASK_031", "TASK_033", "TASK_034", "TASK_037", "TASK_038", "TASK_040", "TASK_045"]
 source_pages: ["../../BACKEND_DESIGN.md", "../../IMPLEMENTATION_PLAN.md", "../../backend/README.md", "../../artifacts/README.md"]
-related_knowledge: ["planirovschik_nedeli.md"]
+related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
 ---
 
 # Архитектура бэкенда планировщика
@@ -100,9 +100,11 @@ related_knowledge: ["planirovschik_nedeli.md"]
   копии, выгрузки, вложения, журналы и будущие агентские запуски — в отдельных
   подпапках одного переносимого корня.
 - **Подтверждено:** для Windows предусмотрен `Запустить планировщик.bat`: он
-  использует уже установленный Python, запускает API на 8000 и статический
+  использует уже установленный Python, запускает API на 8100 и статический
   интерфейс на 3000, не создаёт окружение и не устанавливает библиотеки. Порт
-  5173 исключён, поскольку входит в зарезервированный Windows диапазон.
+  5173 исключён, поскольку входит в зарезервированный Windows диапазон. Перед
+  открытием страницы сценарий проверяет доступность обеих частей и не создаёт
+  дубликаты уже работающих серверов.
 - **Решение:** использовать единицу работы, оптимистичные версии, ключ повтора
   запроса и таблицу исходящих событий.
 - **Решение:** поля, по которым выполняются поиск и фильтрация, хранить в обычных
@@ -172,13 +174,17 @@ related_knowledge: ["planirovschik_nedeli.md"]
 - **Задача-основание:** [TASK_034 — Исправить регрессии статусов и наследования задач](../tasks/TASK_034_ispravit_regressii_statusov_i_nasledovaniya_zadach/034_descr.md)
 - **Задача-основание:** [TASK_037 — Устранить ошибку повторного возврата задачи](../tasks/TASK_037_ustranit_oshibku_povtornogo_vozvrata_zadachi/037_descr.md)
 - **Задача-основание:** [TASK_038 — Восстановить штатный запуск планировщика](../tasks/TASK_038_vosstanovit_shtatnyy_zapusk_planirovschika/038_descr.md)
+- **Задача-основание:** [TASK_040 — Диагностировать и исправить штатный запуск планировщика](../tasks/TASK_040_diagnostirovat_i_ispravit_shtatnyy_zapusk_planirovschika/040_descr.md)
+- **Задача-основание:** [TASK_045 — Подготовить описание базы данных для учебной заявки](../tasks/TASK_045_podgotovit_opisanie_bazy_dannyh_dlya_uchebnoy_zayavki/045_descr.md)
 - **Связанная страница знаний:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
+- **Связанная страница знаний:** [База данных многопользовательского планировщика](baza_dannyh_planirovschika.md)
 - **Связанная страница знаний:** [Карта кода планировщика](karta_koda_planirovschika.md)
 - **Связанная страница знаний:** [План поэтапной переработки планировщика](plan_refaktoringa_planirovschika.md)
 - **Связанная страница решения:** [DEC_003 — Клиентонезависимый бэкенд и переносимые артефакты](../decisions/DECISION_003_bekend_i_artefakty.md)
 - **Связанная страница решения:** [DEC_005 — Дерево задач и единый источник фактического времени](../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Связанное знание:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
+- **Связанное знание:** [База данных многопользовательского планировщика](baza_dannyh_planirovschika.md)
 - **Страница-основание:** [BACKEND_DESIGN](../../BACKEND_DESIGN.md)
 - **Страница-основание:** [IMPLEMENTATION_PLAN](../../IMPLEMENTATION_PLAN.md)
 - **Страница-основание:** [README](../../backend/README.md)

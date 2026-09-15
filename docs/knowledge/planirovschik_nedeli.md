@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Архитектура и предметная модель планировщика недели"
 status: active
-updated: 2026-09-12
+updated: 2026-09-16
 summary: "Каноническая модель личного недельного планировщика с доступным временем, задачами, размещением и фактическими сессиями."
 source_tasks: ["TASK_001", "TASK_003", "TASK_014", "TASK_015", "TASK_016", "TASK_017", "TASK_018", "TASK_019", "TASK_022", "TASK_023"]
 source_pages: ["../../tz/README.md"]
@@ -120,6 +120,7 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
 - **Задача-основание:** [TASK_023 — Исправить немедленное отображение блоков автоплана](../tasks/TASK_023_ispravit_nemedlennoe_otobrazhenie_blokov_avtoplana/023_descr.md)
 - **Связанная страница знаний:** [Архитектура бэкенда планировщика](arhitektura_bekenda.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
+- **Связанная страница знаний:** [База данных многопользовательского планировщика](baza_dannyh_planirovschika.md)
 - **Связанная страница знаний:** [Информационная архитектура интерфейса планировщика](informatsionnaya_arkhitektura_interfeysa.md)
 - **Связанная страница знаний:** [Матрица покрытия требований планировщика](matritsa_pokrytiya_trebovaniy_planirovschika.md)
 - **Связанная страница решения:** [DEC_001 — Базовая архитектура планировщика](../decisions/DECISION_001_architektura_planirovschika.md)

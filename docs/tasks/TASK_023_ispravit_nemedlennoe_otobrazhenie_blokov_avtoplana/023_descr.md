@@ -8,7 +8,7 @@ title: "Исправить немедленное отображение бло�
 slug: "ispravit_nemedlennoe_otobrazhenie_blokov_avtoplana"
 status: done
 created: 2026-09-10
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_022"]

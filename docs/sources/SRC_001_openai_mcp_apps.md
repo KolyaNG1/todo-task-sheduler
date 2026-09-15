@@ -4,7 +4,7 @@ source_id: "SRC_001"
 title: "Официальные материалы OpenAI о пользовательских MCP-приложениях"
 status: active
 created: 2026-09-08
-updated: 2026-09-12
+updated: 2026-09-16
 summary: "Описывают пользовательские MCP-приложения, авторизацию, инструменты и ограничения доступа в ChatGPT и Codex."
 location: "https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt; https://help.openai.com/en/articles/20001256-plugins-in-chatgpt-and-codex"
 related_tasks: ["TASK_004"]

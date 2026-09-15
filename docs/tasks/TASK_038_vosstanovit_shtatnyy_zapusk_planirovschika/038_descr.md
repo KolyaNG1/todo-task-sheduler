@@ -8,7 +8,7 @@ title: "Восстановить штатный запуск планировщ�
 slug: "vosstanovit_shtatnyy_zapusk_planirovschika"
 status: done
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_037"]
@@ -79,6 +79,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Связанная задача:** [TASK_037 — Устранить ошибку повторного возврата задачи](../TASK_037_ustranit_oshibku_povtornogo_vozvrata_zadachi/037_descr.md)
 - **Связанная задача:** [TASK_039 — Скрывать панель показателей и убирать архивные задачи из плана](../TASK_039_skryvat_panel_pokazateley_i_ubirat_arhivnye_zadachi_iz_plana/039_descr.md)
+- **Связанная задача:** [TASK_040 — Диагностировать и исправить штатный запуск планировщика](../TASK_040_diagnostirovat_i_ispravit_shtatnyy_zapusk_planirovschika/040_descr.md)
 - **Созданное или обновлённое знание:** [Архитектура бэкенда планировщика](../../knowledge/arhitektura_bekenda.md)
 <!-- AUTO:PAGE_LINKS:END -->
 

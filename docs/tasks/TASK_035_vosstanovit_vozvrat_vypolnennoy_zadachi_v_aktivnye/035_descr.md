@@ -8,7 +8,7 @@ title: "Восстановить возврат выполненной зада�
 slug: "vosstanovit_vozvrat_vypolnennoy_zadachi_v_aktivnye"
 status: done
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_034"]

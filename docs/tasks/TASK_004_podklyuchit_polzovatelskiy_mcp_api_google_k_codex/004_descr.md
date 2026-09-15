@@ -8,7 +8,7 @@ title: "Подключить пользовательский MCP API Google к 
 slug: "podklyuchit_polzovatelskiy_mcp_api_google_k_codex"
 status: active
 created: 2026-09-08
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: []

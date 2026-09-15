@@ -8,7 +8,7 @@ title: "Скрывать панель показателей и убирать �
 slug: "skryvat_panel_pokazateley_i_ubirat_arhivnye_zadachi_iz_plana"
 status: active
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_038"]

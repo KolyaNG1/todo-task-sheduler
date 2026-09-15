@@ -8,7 +8,7 @@ title: "Исправить регрессии статусов и наследо
 slug: "ispravit_regressii_statusov_i_nasledovaniya_zadach"
 status: done
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_033"]

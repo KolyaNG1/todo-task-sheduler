@@ -8,7 +8,7 @@ title: "Провести полный аудит кода и масштабир�
 slug: "provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik"
 status: done
 created: 2026-09-10
-updated: 2026-09-12
+updated: 2026-09-16
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_007", "TASK_003", "TASK_023"]

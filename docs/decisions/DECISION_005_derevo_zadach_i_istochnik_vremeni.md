@@ -4,7 +4,7 @@ decision_id: "DEC_005"
 title: "Дерево задач и единый источник фактического времени"
 status: accepted
 created: 2026-09-11
-updated: 2026-09-12
+updated: 2026-09-16
 summary: "Крупные задачи образуют упорядоченное дерево обычных задач; конечные и явно отмеченные промежуточные чекпоинты допускаются в календарь, а сессии и интервалы остаются единым источником фактического времени."
 related_tasks: ["TASK_027", "TASK_028", "TASK_029", "TASK_033", "TASK_034"]
 related_knowledge: ["../knowledge/arhitektura_bekenda.md", "../knowledge/karta_koda_planirovschika.md"]

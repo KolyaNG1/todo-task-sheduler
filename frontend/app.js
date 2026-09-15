@@ -2,8 +2,24 @@ const DAY_START = 8 * 60;
 const DAY_END = 24 * 60;
 const HEADER_HEIGHT = 68;
 const QUARTER_HEIGHT = 18;
+const DEFAULT_API_BASE = 'http://127.0.0.1:8100/api/v1';
+const storedApiBase = localStorage.getItem('planner-api');
+
+function normalizeApiBase(value) {
+  if (!value) return DEFAULT_API_BASE;
+  try {
+    const url = new URL(value);
+    if (['127.0.0.1', 'localhost'].includes(url.hostname)) return DEFAULT_API_BASE;
+    return value.replace(/\/$/, '');
+  } catch (_error) {
+    return DEFAULT_API_BASE;
+  }
+}
+
+const initialApiBase = normalizeApiBase(storedApiBase);
+if (storedApiBase !== initialApiBase) localStorage.setItem('planner-api', initialApiBase);
 const state = {
-  apiBase: localStorage.getItem('planner-api') || 'http://127.0.0.1:8000/api/v1', workspace: null,
+  apiBase: initialApiBase, workspace: null,
   weekStart: monday(new Date()), week: null, tasks: [], directions: [], labels: [], notifications: [], selected: new Set(),
   filter: 'all', taskKindFilter: 'all', catalogTaskKind: 'all', archive: null, archiveSection: 'tasks', collapsedTaskNodes: new Set(), search: '', plan: null, planPanelHidden: false, session: null,
   sessionBarHidden: localStorage.getItem('planner-session-hidden') === 'true', sessionReceivedAt: 0, timer: null,
@@ -32,7 +48,27 @@ function timeValue(minutes) { return `${String(Math.floor(minutes / 60)).padStar
 function formatSeconds(value) { return formatMinutes(Math.round((value || 0) / 60)); }
 
 async function api(path, options = {}) { const response = await fetch(`${state.apiBase}${path}`, { headers: { 'Content-Type':'application/json', ...(options.headers || {}) }, ...options }); if (response.status === 204) return null; const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error?.message || `Ошибка сервера: ${response.status}`); return body; }
-async function initialize() { try { const bootstrap = await api('/bootstrap'); state.workspace = bootstrap.workspace; await loadData(); showToast('Планировщик готов'); } catch (error) { showToast(`Не удалось подключиться к серверу. ${error.message}`, true); renderOffline(); } }
+async function connectToPlanner() { const bootstrap = await api('/bootstrap'); state.workspace = bootstrap.workspace; await loadData(); }
+async function initialize() {
+  try {
+    await connectToPlanner();
+    showToast('Планировщик готов');
+  } catch (firstError) {
+    if (state.apiBase !== DEFAULT_API_BASE) {
+      state.apiBase = DEFAULT_API_BASE;
+      localStorage.setItem('planner-api', DEFAULT_API_BASE);
+      try {
+        await connectToPlanner();
+        showToast('Подключение к локальному серверу восстановлено');
+        return;
+      } catch (fallbackError) {
+        firstError = fallbackError;
+      }
+    }
+    showToast(`Не удалось подключиться к серверу. ${firstError.message}`, true);
+    renderOffline();
+  }
+}
 async function loadData() {
   const token = ++state.loadToken;
   state.loadController?.abort();
