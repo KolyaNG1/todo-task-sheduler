@@ -4,7 +4,7 @@ title: "Информационная архитектура интерфейса
 status: active
 updated: 2026-09-19
 summary: "Пять разделов и контекстные панели покрывают ежедневные и административные сценарии планировщика; все основные разделы имеют рабочий локальный срез."
-source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039", "TASK_047"]
+source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039", "TASK_047", "TASK_048"]
 source_pages: ["../../DESIGN.md", "../../frontend/index.html", "../../frontend/app.js"]
 related_knowledge: ["planirovschik_nedeli.md"]
 ---
@@ -147,6 +147,9 @@ related_knowledge: ["planirovschik_nedeli.md"]
 - **Подтверждено:** экран «Итоги» показывает устойчивую неделю Пн–Вс; выбор
   даты не сдвигает состав карточек, стрелки сохраняют день недели, отдельная
   кнопка возвращает текущую неделю, а ещё не наступившие даты приглушены.
+- **Подтверждено:** сравнительная шкала дня в «Итогах» всегда охватывает
+  06:00–24:00, при открытии устанавливается на 09:00, а ось, факт и план
+  прокручиваются в одном общем контейнере.
 
 Решение о навигации оформлено в
 [DEC_002](../decisions/DECISION_002_navigatsiya_interfeysa.md).
@@ -203,6 +206,7 @@ related_knowledge: ["planirovschik_nedeli.md"]
 - **Задача-основание:** [TASK_036 — Устранить двойное нажатие при смене статуса блока](../tasks/TASK_036_ustranit_dvoynoe_nazhatie_pri_smene_statusa_bloka/036_descr.md)
 - **Задача-основание:** [TASK_039 — Скрывать панель показателей и убирать архивные задачи из плана](../tasks/TASK_039_skryvat_panel_pokazateley_i_ubirat_arhivnye_zadachi_iz_plana/039_descr.md)
 - **Задача-основание:** [TASK_047 — Стабилизировать недельную навигацию итогов](../tasks/TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md)
+- **Задача-основание:** [TASK_048 — Расширить и синхронизировать шкалу итогов](../tasks/TASK_048_rasshirit_i_sinhronizirovat_shkalu_itogov/048_descr.md)
 - **Связанная страница знаний:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [Карта кода планировщика](karta_koda_planirovschika.md)

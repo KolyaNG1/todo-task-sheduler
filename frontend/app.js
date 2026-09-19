@@ -320,16 +320,14 @@ function timelineMinute(value) { const moment = new Date(value); return moment.g
 function renderDayComparison(report) {
   const actual = report?.actual_timeline || [];
   const planned = report?.planned_timeline || [];
-  const all = [...actual, ...planned];
-  const earliest = all.length ? Math.min(...all.map((item) => timelineMinute(item.start_at))) : 9 * 60;
-  const latest = all.length ? Math.max(...all.map((item) => timelineMinute(item.end_at))) : 18 * 60;
-  const rangeStart = Math.max(0, Math.min(8 * 60, Math.floor(earliest / 60) * 60));
-  const rangeEnd = Math.min(24 * 60, Math.max(18 * 60, Math.ceil(latest / 60) * 60));
+  const rangeStart = 6 * 60;
+  const rangeEnd = 24 * 60;
+  const defaultStart = 9 * 60;
   const pixelsPerMinute = .85;
-  const height = Math.max(420, (rangeEnd - rangeStart) * pixelsPerMinute);
+  const height = (rangeEnd - rangeStart) * pixelsPerMinute;
   const hours = [];
   for (let minute = rangeStart; minute <= rangeEnd; minute += 60) hours.push(minute);
-  const clock = (minute) => `${String(Math.floor(minute / 60) % 24).padStart(2, '0')}:00`;
+  const clock = (minute) => minute === 24 * 60 ? '24:00' : `${String(Math.floor(minute / 60)).padStart(2, '0')}:00`;
   const guides = hours.map((minute) => `<i class="timeline-guide" style="top:${(minute - rangeStart) * pixelsPerMinute}px"></i>`).join('');
   const axis = hours.map((minute) => `<span style="top:${(minute - rangeStart) * pixelsPerMinute}px">${clock(minute)}</span>`).join('');
   const blocks = (items, kind) => items.map((item) => {
@@ -342,7 +340,8 @@ function renderDayComparison(report) {
     return `<article class="timeline-block ${kind}" style="top:${top}px;height:${blockHeight}px;--block-color:${item.color || '#356AE6'}" title="${escapeHtml(item.title)} · ${from}–${to}"><strong>${escapeHtml(item.title)}</strong><small>${from}–${to}</small></article>`;
   }).join('');
   const track = (items, kind, empty) => `<div class="timeline-track" style="height:${height}px">${guides}${items.length ? blocks(items, kind) : `<p class="timeline-empty">${empty}</p>`}</div>`;
-  return `<section class="report-section day-comparison"><div class="report-section-head"><div><h3>Как прошёл день</h3><p class="muted">Фактическая работа и план показаны на одной шкале времени.</p></div></div><div class="timeline-head"><span></span><strong>Как получилось</strong><strong>Как было в плане</strong></div><div class="timeline-body"><div class="timeline-axis" style="height:${height}px">${axis}</div>${track(actual, 'actual', 'Работа не зафиксирована')}${track(planned, 'planned', 'На это время ничего не запланировано')}</div></section>`;
+  const defaultScroll = (defaultStart - rangeStart) * pixelsPerMinute;
+  return `<section class="report-section day-comparison"><div class="report-section-head"><div><h3>Как прошёл день</h3><p class="muted">Шкала доступна с 06:00 до 24:00 и открывается на 09:00. Факт и план прокручиваются вместе.</p></div></div><div class="timeline-head"><span></span><strong>Как получилось</strong><strong>Как было в плане</strong></div><div class="timeline-scroll" data-default-scroll="${defaultScroll}"><div class="timeline-body"><div class="timeline-axis" style="height:${height}px">${axis}</div>${track(actual, 'actual', 'Работа не зафиксирована')}${track(planned, 'planned', 'На это время ничего не запланировано')}</div></div></section>`;
 }
 async function setSessionView(mode) { state.sessionView = mode; localStorage.setItem('planner-session-view', mode); renderSection(); }
 function selectReportDate(value, syncWeek = true) { state.reportDate = value; if (syncWeek) state.reportWeekStart = dateKey(monday(new Date(`${value}T12:00:00`))); loadReport(); }
@@ -385,6 +384,8 @@ function renderSection() {
     const warnings = renderOverdueSummary(report?.overdue_tasks);
     const comparison = report ? renderDayComparison(report) : '';
     view.innerHTML = `<header class="page-header"><div><p class="eyebrow">ФАКТ И НАГРУЗКА ЗА КОНКРЕТНЫЙ ДЕНЬ</p><h2>Итоги дня</h2><div class="report-date-control"><button class="button ghost" data-action="report-previous" aria-label="Предыдущий день">‹</button><input id="report-date" type="date" value="${state.reportDate}" /><button class="button ghost" data-action="report-next" aria-label="Следующий день">›</button><button class="button ghost" data-action="report-today">Сегодня</button></div></div><div><button class="button secondary" data-action="add-manual">+ Внести время</button><button class="button primary" data-action="refresh-report">Обновить</button></div></header>${warnings}${report ? `<div class="metrics"><article><span>План</span><strong>${formatSeconds(report.planned_seconds)}</strong></article><article><span>Факт</span><strong>${formatSeconds(report.actual_seconds)}</strong></article><article><span>Выполнено</span><strong>${report.completed_count}</strong></article><article><span>Ритм дня</span><strong>${report.score || 0}%</strong></article></div><section class="report-history"><div class="report-week-heading"><div><h3>Неделя</h3><span>${formatWeek(weekStart)}</span></div><div><button class="button ghost" data-action="report-week-previous" aria-label="Предыдущая неделя">‹</button><button class="button ghost current-week-button" data-action="report-current-week">Текущая неделя</button><button class="button ghost" data-action="report-week-next" aria-label="Следующая неделя">›</button></div></div><div class="report-week-days">${history.map((day, index) => `<button class="history-day ${day.date === state.reportDate ? 'active' : ''} ${day.date > todayKey ? 'future' : ''}" data-action="select-report-date" data-date="${day.date}"><span class="history-weekday">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][index]}</span><span>${new Date(`${day.date}T12:00:00`).toLocaleDateString('ru-RU', { day:'numeric', month:'short' })}</span><strong>${day.score || 0}%</strong><small>${formatSeconds(day.actual_task_seconds)} работы</small></button>`).join('')}</div></section>${comparison}<section class="report-section"><div class="report-section-head"><h3>${byTask ? 'Работа по задачам' : 'Сессии за день'}</h3><div class="view-toggle"><button class="button ${byTask ? 'ghost' : 'secondary'}" data-action="show-session-timeline">По времени</button><button class="button ${byTask ? 'secondary' : 'ghost'}" data-action="show-session-tasks">По задачам</button></div></div><p class="muted">${byTask ? 'Все группы ниже относятся только к выбранному дню.' : 'Хронологический вид выбранного дня.'}</p>${sessionContent}</section>` : '<div class="empty">Собираю итог дня…</div>'}`;
+    const timelineScroll = view.querySelector('.timeline-scroll');
+    if (timelineScroll) timelineScroll.scrollTop = Number(timelineScroll.dataset.defaultScroll || 0);
   } else if (state.section === 'archive') {
     const archive = state.archive || { tasks:[], goals:[], directions:[], labels:[], fixed_events:[] };
     const sections = [['tasks','Задачи'],['goals','Цели'],['directions','Направления'],['labels','Теги'],['fixed_events','События']];

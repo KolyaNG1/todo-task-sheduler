@@ -65,6 +65,7 @@ updated: 2026-09-19
 | [TASK_045](tasks/TASK_045_podgotovit_opisanie_bazy_dannyh_dlya_uchebnoy_zayavki/045_descr.md) — Подготовить описание базы данных для учебной заявки | `root` | Подготовить описание базы данных для учебной заявки | `done` | 2026-09-19 |
 | [TASK_046](tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md) — Переработать иерархию задач и дневную историю метрик | `root` | Переработать иерархию задач и дневную историю метрик | `done` | 2026-09-19 |
 | [TASK_047](tasks/TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md) — Стабилизировать недельную навигацию итогов | `root` | Стабилизировать недельную навигацию итогов | `done` | 2026-09-19 |
+| [TASK_048](tasks/TASK_048_rasshirit_i_sinhronizirovat_shkalu_itogov/048_descr.md) — Расширить и синхронизировать шкалу итогов | `root` | Расширить и синхронизировать шкалу итогов | `done` | 2026-09-19 |
 
 ## Дерево задач
 
@@ -97,6 +98,7 @@ updated: 2026-09-19
   - [TASK_028](tasks/TASK_028_pererabotat_interfeys_tseley_i_ierarhii_zadach/028_descr.md) — Переработать интерфейс целей и иерархии задач (`root`, `done`)
   - [TASK_046](tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md) — Переработать иерархию задач и дневную историю метрик (`root`, `done`)
   - [TASK_047](tasks/TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md) — Стабилизировать недельную навигацию итогов (`root`, `done`)
+    - [TASK_048](tasks/TASK_048_rasshirit_i_sinhronizirovat_shkalu_itogov/048_descr.md) — Расширить и синхронизировать шкалу итогов (`root`, `done`)
 - [TASK_026](tasks/TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md) — Опубликовать планировщик в удалённом репозитории (`root`, `done`)
 - [TASK_029](tasks/TASK_029_dobavit_udalenie_i_povtornoe_otkrytie_tseley/029_descr.md) — Добавить удаление и повторное открытие целей (`root`, `done`)
 - [TASK_030](tasks/TASK_030_ispravit_perepolnenie_knopok_v_kartochkah_tseley/030_descr.md) — Исправить переполнение кнопок в карточках целей (`root`, `done`)

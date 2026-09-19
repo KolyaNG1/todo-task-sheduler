@@ -99,6 +99,7 @@ root_record: null
 ## Связи
 
 <!-- AUTO:PAGE_LINKS:START -->
+- **Дочерняя задача:** [TASK_048 — Расширить и синхронизировать шкалу итогов](../TASK_048_rasshirit_i_sinhronizirovat_shkalu_itogov/048_descr.md)
 - **Родительская задача:** [TASK_025 — Переработать планировщик и закрыть аудит](../TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
 - **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
 - **Созданное или обновлённое знание:** [Информационная архитектура интерфейса планировщика](../../knowledge/informatsionnaya_arkhitektura_interfeysa.md)
