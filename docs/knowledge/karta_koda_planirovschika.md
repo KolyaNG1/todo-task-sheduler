@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Карта кода планировщика"
 status: active
-updated: 2026-09-16
+updated: 2026-09-19
 summary: "Навигация по файлам, слоям, данным и основным потокам планировщика для быстрого поиска причин ошибок."
 source_tasks: ["TASK_024", "TASK_025", "TASK_027", "TASK_028", "TASK_029", "TASK_030", "TASK_031"]
 source_pages: ["../../backend/src/planner/main.py", "../../backend/src/planner/application/services.py", "../../backend/src/planner/domain/planning.py", "../../backend/src/planner/api/router.py", "../../backend/src/planner/api/schemas.py", "../../backend/src/planner/api/presenters.py", "../../backend/src/planner/infrastructure/models.py", "../../frontend/index.html", "../../frontend/app.js", "../../frontend/styles.css"]

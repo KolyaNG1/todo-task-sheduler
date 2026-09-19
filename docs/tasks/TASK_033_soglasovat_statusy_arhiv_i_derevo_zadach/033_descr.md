@@ -8,7 +8,7 @@ title: "Согласовать статусы, архив и дерево зад
 slug: "soglasovat_statusy_arhiv_i_derevo_zadach"
 status: done
 created: 2026-09-12
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_032"]
@@ -94,6 +94,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Связанная задача:** [TASK_032 — Переработать фильтры задач, события и форму создания](../TASK_032_pererabotat_filtry_zadach_sobytiya_i_formu_sozdaniya/032_descr.md)
 - **Связанная задача:** [TASK_034 — Исправить регрессии статусов и наследования задач](../TASK_034_ispravit_regressii_statusov_i_nasledovaniya_zadach/034_descr.md)
+- **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
 - **Связанное решение:** [DEC_005 — Дерево задач и единый источник фактического времени](../../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Созданное или обновлённое знание:** [Архитектура бэкенда планировщика](../../knowledge/arhitektura_bekenda.md)
 - **Созданное или обновлённое знание:** [Информационная архитектура интерфейса планировщика](../../knowledge/informatsionnaya_arkhitektura_interfeysa.md)

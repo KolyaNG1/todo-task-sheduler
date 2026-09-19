@@ -8,7 +8,7 @@ title: "Переработать интерфейс целей и иерархи
 slug: "pererabotat_interfeys_tseley_i_ierarhii_zadach"
 status: done
 created: 2026-09-11
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_027"]
@@ -113,6 +113,7 @@ root_record: null
 - **Родительская задача:** [TASK_025 — Переработать планировщик и закрыть аудит](../TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
 - **Связанная задача:** [TASK_027 — Расширить задачи и историю работы планировщика](../TASK_027_rasshirit_zadachi_i_istoriyu_raboty_planirovschika/027_descr.md)
 - **Связанная задача:** [TASK_029 — Добавить удаление и повторное открытие целей](../TASK_029_dobavit_udalenie_i_povtornoe_otkrytie_tseley/029_descr.md)
+- **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
 - **Связанное решение:** [DEC_005 — Дерево задач и единый источник фактического времени](../../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Созданное или обновлённое знание:** [Архитектура бэкенда планировщика](../../knowledge/arhitektura_bekenda.md)
 - **Созданное или обновлённое знание:** [Информационная архитектура интерфейса планировщика](../../knowledge/informatsionnaya_arkhitektura_interfeysa.md)

@@ -8,7 +8,7 @@ title: "Расширить задачи и историю работы план�
 slug: "rasshirit_zadachi_i_istoriyu_raboty_planirovschika"
 status: done
 created: 2026-09-11
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: []
@@ -116,6 +116,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Родительская задача:** [TASK_025 — Переработать планировщик и закрыть аудит](../TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
 - **Связанная задача:** [TASK_028 — Переработать интерфейс целей и иерархии задач](../TASK_028_pererabotat_interfeys_tseley_i_ierarhii_zadach/028_descr.md)
+- **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
 - **Связанное решение:** [DEC_005 — Дерево задач и единый источник фактического времени](../../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Созданное или обновлённое знание:** [Архитектура бэкенда планировщика](../../knowledge/arhitektura_bekenda.md)
 - **Созданное или обновлённое знание:** [Карта кода планировщика](../../knowledge/karta_koda_planirovschika.md)

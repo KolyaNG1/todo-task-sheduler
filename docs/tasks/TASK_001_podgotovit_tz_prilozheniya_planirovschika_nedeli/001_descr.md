@@ -8,7 +8,7 @@ title: "Подготовить ТЗ приложения-планировщик�
 slug: "podgotovit_tz_prilozheniya_planirovschika_nedeli"
 status: done
 created: 2026-09-08
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: null
 depends_on: []
 related_tasks: []

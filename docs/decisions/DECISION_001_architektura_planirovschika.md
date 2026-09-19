@@ -4,7 +4,7 @@ decision_id: "DEC_001"
 title: "Базовая архитектура планировщика"
 status: accepted
 created: 2026-09-08
-updated: 2026-09-16
+updated: 2026-09-19
 summary: "Отделить предметную модель от FastAPI, SQLite и интерфейсов; использовать подтверждаемый детерминированный планировщик."
 related_tasks: ["TASK_001"]
 related_knowledge: ["../knowledge/planirovschik_nedeli.md"]

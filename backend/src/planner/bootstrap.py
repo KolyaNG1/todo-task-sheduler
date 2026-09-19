@@ -28,7 +28,7 @@ class Container:
         self._normalize_legacy_datetimes()
         with self.session_factory.begin() as session:
             PlannerService(session).initialize_workspace()
-        self.artifacts.write_manifest(application_version="0.3.0", schema_revision="0006", extra={"utc_normalized_at": datetime.now(UTC).isoformat()})
+        self.artifacts.write_manifest(application_version="0.4.0", schema_revision="0007", extra={"utc_normalized_at": datetime.now(UTC).isoformat()})
 
     def _apply_compatibility_migrations(self) -> None:
         """Дополняет локальную SQLite обратно совместимо и с резервной копией."""
@@ -50,6 +50,7 @@ class Container:
             # Новые таблицы create_all добавляет на чистой базе. Для старой базы
             # создаём их явно, а недостающие столбцы добавляем без удаления строк.
             Base.metadata.tables["goals"].create(connection, checkfirst=True)
+            Base.metadata.tables["daily_metric_snapshots"].create(connection, checkfirst=True)
             definitions = {
                 "tasks": {
                     "repeat_rule": "VARCHAR(16) NOT NULL DEFAULT 'NONE'",
@@ -106,6 +107,7 @@ class Container:
             "work_sessions": ("workspace_id", ("created_at", "updated_at", "started_at", "ended_at")),
             "work_session_segments": (None, ("created_at", "updated_at", "start_at", "end_at")),
             "notifications": ("workspace_id", ("created_at", "updated_at", "read_at", "resolved_at")),
+            "daily_metric_snapshots": ("workspace_id", ("created_at", "updated_at", "captured_at")),
             "audit_log": ("workspace_id", ("created_at", "updated_at")),
             "outbox_events": ("workspace_id", ("created_at", "updated_at", "occurred_at", "processed_at")),
         }

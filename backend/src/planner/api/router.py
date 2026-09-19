@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
-from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, session_view, task_detail_view, task_view
+from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, session_view, session_view_between, task_collection_view, task_detail_view, task_view
 from planner.api.schemas import (
     AvailabilityProfileReplace,
     CompletionRequest,
@@ -73,7 +73,8 @@ def startup(workspace_id: str, week_start: date, days: int = 7, service: Planner
     context = context_for(service, workspace_id)
     week = service.week_view(context, week_start, days)
     profile = service.default_availability(context)
-    return {"week": week_response(week), "active_session": session_view(service.active_session(context), now=service.now), "directions": [direction_view(item) for item in service.list_directions(context)], "tasks": [task_view(item, now=service.now) for item in service.list_tasks(context, include_completed=True)], "default_availability": [{"weekday": slot.weekday, "start_minute": slot.start_minute, "end_minute": slot.end_minute} for slot in profile.slots] if profile else []}
+    tasks = service.list_tasks(context, include_completed=True)
+    return {"week": week_response(week), "active_session": session_view(service.active_session(context), now=service.now), "directions": [direction_view(item) for item in service.list_directions(context)], "tasks": task_collection_view(tasks, now=service.now), "default_availability": [{"weekday": slot.weekday, "start_minute": slot.start_minute, "end_minute": slot.end_minute} for slot in profile.slots] if profile else []}
 
 
 @router.get("/workspaces/{workspace_id}/directions")
@@ -189,7 +190,7 @@ def delete_goal(workspace_id: str, goal_id: str, service: PlannerService = Depen
 @router.get("/workspaces/{workspace_id}/tasks")
 def list_tasks(workspace_id: str, include_completed: bool = False, include_deleted: bool = False, service: PlannerService = Depends(get_service)) -> list[dict]:
     context = context_for(service, workspace_id)
-    return [task_view(item, now=service.now) for item in service.list_tasks(context, include_completed=include_completed, include_deleted=include_deleted)]
+    return task_collection_view(service.list_tasks(context, include_completed=include_completed, include_deleted=include_deleted), now=service.now)
 
 
 @router.get("/workspaces/{workspace_id}/tasks/{task_id}")
@@ -444,13 +445,28 @@ def list_sessions_by_task(workspace_id: str, service: PlannerService = Depends(g
 def daily_report(workspace_id: str, local_date: date, service: PlannerService = Depends(get_service)) -> dict:
     context = context_for(service, workspace_id)
     report = service.daily_report(context, local_date)
-    return {**report, "sessions": [session_view(item, now=service.now) for item in report["sessions"]]}
+    start = report.pop("_range_start")
+    end = report.pop("_range_end")
+    sessions = [session_view_between(item, start=start, end=end, now=service.now) for item in report["sessions"]]
+    return {**report, "sessions": [item for item in sessions if item]}
+
+
+@router.get("/workspaces/{workspace_id}/reports/history")
+def report_history(workspace_id: str, start_date: date, end_date: date, service: PlannerService = Depends(get_service)) -> dict:
+    context = context_for(service, workspace_id)
+    return {"start_date": start_date.isoformat(), "end_date": end_date.isoformat(), "days": service.daily_history(context, start_date, end_date)}
 
 
 @router.get("/workspaces/{workspace_id}/reports/weekly/{week_start}")
 def weekly_report(workspace_id: str, week_start: date, service: PlannerService = Depends(get_service)) -> dict:
     report = service.weekly_report(context_for(service, workspace_id), week_start)
-    report["days"] = [{**day, "sessions": [session_view(item, now=service.now) for item in day["sessions"]]} for day in report["days"]]
+    rendered_days = []
+    for day in report["days"]:
+        start = day.pop("_range_start")
+        end = day.pop("_range_end")
+        sessions = [session_view_between(item, start=start, end=end, now=service.now) for item in day["sessions"]]
+        rendered_days.append({**day, "sessions": [item for item in sessions if item]})
+    report["days"] = rendered_days
     return report
 
 

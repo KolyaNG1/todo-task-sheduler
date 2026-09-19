@@ -314,12 +314,12 @@ def test_archive_restores_tree_and_permanently_purges_entities(tmp_path) -> None
 def test_archived_task_is_removed_from_week_view_but_kept_in_archive(tmp_path) -> None:
     with _client(tmp_path) as client:
         workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
-        task = client.post(f"/api/v1/workspaces/{workspace}/tasks", json={"title": "Убрать из плана"}).json()
+        task = client.post(f"/api/v1/workspaces/{workspace}/tasks", json={"title": "Убрать из плана", "estimate_minutes": 60}).json()
         block = client.post(
             f"/api/v1/workspaces/{workspace}/blocks",
             json={"task_id": task["id"], "start_at": "2030-01-07T06:00:00+00:00", "end_at": "2030-01-07T07:00:00+00:00"},
         )
-        assert block.status_code == 201
+        assert block.status_code == 201, block.text
         assert len(client.get(f"/api/v1/workspaces/{workspace}/week", params={"week_start": "2030-01-07"}).json()["days"][0]["blocks"]) == 1
 
         assert client.delete(f"/api/v1/workspaces/{workspace}/tasks/{task['id']}").status_code == 204
@@ -381,7 +381,7 @@ def test_task_tree_plans_only_leaves_and_keeps_work_intervals_inside_task(tmp_pa
         assert history[0]["sessions"][0]["segments"][0]["elapsed_seconds"] == 20 * 60
 
 
-def test_planned_task_cannot_silently_turn_into_group_and_groups_do_not_track_time(tmp_path) -> None:
+def test_planned_task_becomes_actionable_group_and_pure_groups_do_not_track_time(tmp_path) -> None:
     with _client(tmp_path) as client:
         workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
         scheduled = client.post(
@@ -397,8 +397,11 @@ def test_planned_task_cannot_silently_turn_into_group_and_groups_do_not_track_ti
             f"/api/v1/workspaces/{workspace}/tasks",
             json={"title": "Поздний чекпоинт", "parent_task_id": scheduled["id"]},
         )
-        assert child.status_code == 422
-        assert "Сначала снимите" in child.json()["error"]["message"]
+        assert child.status_code == 201
+        refreshed_parent = client.get(f"/api/v1/workspaces/{workspace}/tasks/{scheduled['id']}").json()
+        assert refreshed_parent["node_type"] == "GROUP"
+        assert refreshed_parent["is_actionable_group"] is True
+        assert refreshed_parent["can_schedule"] is True
 
         parent = client.post(f"/api/v1/workspaces/{workspace}/tasks", json={"title": "Группа"}).json()
         checkpoint = client.post(
@@ -411,3 +414,131 @@ def test_planned_task_cannot_silently_turn_into_group_and_groups_do_not_track_ti
             f"/api/v1/workspaces/{workspace}/work-sessions/manual",
             json={"task_id": parent["id"], "started_at": "2030-01-07T06:00:00+00:00", "ended_at": "2030-01-07T06:10:00+00:00"},
         ).status_code == 422
+
+
+def test_deep_tree_has_stable_node_types_and_recursive_progress(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        goal = client.post(f"/api/v1/workspaces/{workspace}/goals", json={"title": "Устроиться в Авито"}).json()
+        root = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Авито: Собес", "goal_id": goal["id"], "estimate_minutes": 100},
+        ).json()
+        group = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Заботать МЛ", "parent_task_id": root["id"], "estimate_minutes": 50},
+        ).json()
+        first = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Повторить NLP", "parent_task_id": group["id"], "estimate_minutes": 40},
+        ).json()
+        second = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Повторить CV", "parent_task_id": group["id"], "estimate_minutes": 60},
+        ).json()
+
+        assert first["node_type"] == "TASK"
+        assert first["is_checkpoint"] is False
+        assert first["can_schedule"] is True
+        assert second["node_type"] == "TASK"
+
+        root_as_task = client.patch(
+            f"/api/v1/workspaces/{workspace}/tasks/{root['id']}", json={"is_checkpoint": True}
+        ).json()
+        assert root_as_task["node_type"] == "GROUP"
+        assert root_as_task["is_actionable_group"] is True
+        assert client.post(f"/api/v1/workspaces/{workspace}/tasks/{first['id']}/complete", json={}).status_code == 200
+        assert client.post(f"/api/v1/workspaces/{workspace}/tasks/{root['id']}/complete", json={}).status_code == 200
+
+        detail = client.get(f"/api/v1/workspaces/{workspace}/goals/{goal['id']}").json()
+        by_id = {task["id"]: task for task in detail["tasks"]}
+        assert by_id[group["id"]]["node_type"] == "GROUP"
+        assert by_id[group["id"]]["can_schedule"] is False
+        assert by_id[group["id"]]["progress_percent"] == 40
+        assert by_id[root["id"]]["progress_percent"] == 70
+        assert detail["progress_percent"] == 70
+        assert detail["actionable_task_count"] == 3
+        assert detail["completed_actionable_task_count"] == 2
+
+
+def test_daily_metrics_are_stored_and_available_as_history(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        client.put(
+            f"/api/v1/workspaces/{workspace}/availability/dates/2030-01-07",
+            json={"slots": [{"start_minute": 540, "end_minute": 600}]},
+        )
+        report = client.get(f"/api/v1/workspaces/{workspace}/reports/daily/2030-01-07")
+        assert report.status_code == 200
+        assert report.json()["date"] == "2030-01-07"
+        assert "score" in report.json()
+        history = client.get(
+            f"/api/v1/workspaces/{workspace}/reports/history",
+            params={"start_date": "2030-01-06", "end_date": "2030-01-08"},
+        )
+        assert history.status_code == 200
+        assert [day["date"] for day in history.json()["days"]] == ["2030-01-06", "2030-01-07", "2030-01-08"]
+        assert history.json()["days"][1]["capacity_seconds"] == 3600
+
+
+def test_daily_report_clips_sessions_and_plan_to_selected_day(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        task = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Ночная работа", "estimate_minutes": 60, "can_split": True},
+        ).json()
+        session = client.post(
+            f"/api/v1/workspaces/{workspace}/work-sessions/manual",
+            json={
+                "task_id": task["id"],
+                "started_at": "2030-01-06T20:30:00+00:00",
+                "ended_at": "2030-01-06T21:30:00+00:00",
+            },
+        )
+        assert session.status_code == 201
+        client.put(
+            f"/api/v1/workspaces/{workspace}/availability/dates/2030-01-07",
+            json={"slots": [{"start_minute": 540, "end_minute": 600}]},
+        )
+        block = client.post(
+            f"/api/v1/workspaces/{workspace}/blocks",
+            json={
+                "task_id": task["id"],
+                "start_at": "2030-01-07T06:00:00+00:00",
+                "end_at": "2030-01-07T06:30:00+00:00",
+            },
+        )
+        assert block.status_code == 201, block.text
+
+        report = client.get(f"/api/v1/workspaces/{workspace}/reports/daily/2030-01-07").json()
+        assert report["actual_seconds"] == 30 * 60
+        assert report["sessions"][0]["elapsed_seconds"] == 30 * 60
+        assert report["sessions"][0]["started_at"] == "2030-01-06T21:00:00+00:00"
+        assert report["actual_timeline"][0]["start_at"] == "2030-01-06T21:00:00+00:00"
+        assert report["planned_timeline"][0]["end_at"] == "2030-01-07T06:30:00+00:00"
+
+
+def test_overdue_warning_belongs_only_to_deadline_day_and_stale_notice_closes(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        task = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Старый срок", "deadline_at": "2020-01-01T10:00:00+00:00"},
+        ).json()
+        with client.app.state.session_factory.begin() as session:
+            session.add(Notification(
+                workspace_id=workspace,
+                task_id=task["id"],
+                kind="OVERDUE",
+                deduplication_key=f"OVERDUE:{task['id']}",
+                title="Просрочена задача",
+                status="OPEN",
+            ))
+
+        deadline_day = client.get(f"/api/v1/workspaces/{workspace}/reports/daily/2020-01-01").json()
+        next_day = client.get(f"/api/v1/workspaces/{workspace}/reports/daily/2020-01-02").json()
+        assert [item["task_id"] for item in deadline_day["overdue_tasks"]] == [task["id"]]
+        assert next_day["overdue_tasks"] == []
+        notifications = client.get(f"/api/v1/workspaces/{workspace}/notifications").json()
+        assert next(item for item in notifications if item["task_id"] == task["id"])["status"] == "RESOLVED"

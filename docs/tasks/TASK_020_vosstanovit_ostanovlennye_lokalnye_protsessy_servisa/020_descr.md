@@ -8,7 +8,7 @@ title: "Восстановить остановленные локальные �
 slug: "vosstanovit_ostanovlennye_lokalnye_protsessy_servisa"
 status: done
 created: 2026-09-10
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_019"]

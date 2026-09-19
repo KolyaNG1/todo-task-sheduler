@@ -8,7 +8,7 @@ title: "Проверить фактическую длительность ав�
 slug: "proverit_fakticheskuyu_dlitelnost_avtomaticheskogo_bloka"
 status: done
 created: 2026-09-09
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_014"]

@@ -6,7 +6,7 @@
     <meta name="description" content="Личный планировщик недели" />
     <title>Планировщик недели</title>
     <link rel="icon" type="image/png" href="assets/palm-avatar.png?v=1" />
-    <link rel="stylesheet" href="styles.css?v=20260912-4" />
+    <link rel="stylesheet" href="styles.css?v=20260919-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -45,8 +45,8 @@
           <span>Тип</span>
           <button class="kind-filter active" data-kind-filter="all">Все</button>
           <button class="kind-filter" data-kind-filter="tasks">Задачи</button>
-          <button class="kind-filter" data-kind-filter="checkpoints">Чекпоинты</button>
           <button class="kind-filter" data-kind-filter="groups">Группы</button>
+          <button class="kind-filter" data-kind-filter="actionable-groups">Группы-задачи</button>
         </div>
         <div class="filters" role="tablist" aria-label="Состояние задач">
           <button class="filter active" data-filter="all">Все</button>
@@ -120,6 +120,6 @@
       </form>
     </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" id="toast-close" aria-label="Закрыть уведомление">×</button></div>
-    <script type="module" src="app.js?v=20260914-5"></script>
+    <script type="module" src="app.js?v=20260919-2"></script>
   </body>
 </html>

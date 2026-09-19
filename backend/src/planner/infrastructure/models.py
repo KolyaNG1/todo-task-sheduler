@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -113,12 +113,14 @@ class Task(IdentityMixin, Base):
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     direction_id: Mapped[str | None] = mapped_column(ForeignKey("directions.id", ondelete="SET NULL"), nullable=True)
     goal_id: Mapped[str | None] = mapped_column(ForeignKey("goals.id", ondelete="SET NULL"), nullable=True)
-    # Самоссылка образует дерево: проект → спринт → конкретный чекпоинт.
-    # Планировать разрешается только конечные пункты без потомков.
+    # Самоссылка образует дерево произвольной глубины. Лист является задачей,
+    # внутренний узел — группой. Названия уровней (проект, спринт и т. п.)
+    # задаёт пользователь, а не схема базы.
     parent_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     child_position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    # Чекпоинт — явное свойство работы, независимое от позиции в дереве.
-    # Поэтому промежуточный узел при необходимости тоже может быть действием.
+    # Историческое имя поля сохранено для совместимости. Для внутреннего узла
+    # оно означает «эту группу также можно выполнять как задачу». У листа поле
+    # не влияет на тип: любой лист и так является задачей.
     is_checkpoint: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Порядок выполнения в рамках одной цели. У задачи может быть только одна
     # цель, поэтому отдельная таблица связи здесь не нужна.
@@ -328,6 +330,20 @@ class WorkSessionSegment(IdentityMixin, Base):
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     session: Mapped[WorkSession] = relationship(back_populates="segments")
     __table_args__ = (CheckConstraint("end_at IS NULL OR end_at > start_at", name="ck_session_segment_range"),)
+
+
+class DailyMetricSnapshot(IdentityMixin, Base):
+    """Сохранённый срез показателей одного локального календарного дня."""
+
+    __tablename__ = "daily_metric_snapshots"
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    local_date: Mapped[date] = mapped_column(Date, nullable=False)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "local_date", name="uq_daily_metric_snapshot_date"),
+        Index("ix_daily_metric_snapshots_workspace_date", "workspace_id", "local_date"),
+    )
 
 
 class Notification(IdentityMixin, Base):

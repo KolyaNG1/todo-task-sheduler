@@ -2,9 +2,9 @@
 doc_type: knowledge
 title: "Информационная архитектура интерфейса планировщика"
 status: active
-updated: 2026-09-16
+updated: 2026-09-19
 summary: "Пять разделов и контекстные панели покрывают ежедневные и административные сценарии планировщика; все основные разделы имеют рабочий локальный срез."
-source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039"]
+source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039", "TASK_047"]
 source_pages: ["../../DESIGN.md", "../../frontend/index.html", "../../frontend/app.js"]
 related_knowledge: ["planirovschik_nedeli.md"]
 ---
@@ -144,6 +144,9 @@ related_knowledge: ["planirovschik_nedeli.md"]
   кнопка с галочкой возвращает карточку и блок в активное состояние. Та же
   кнопка есть непосредственно на завершённом блоке расписания. Отрисовка
   меняется сразу на первое нажатие и не ждёт фонового обновления.
+- **Подтверждено:** экран «Итоги» показывает устойчивую неделю Пн–Вс; выбор
+  даты не сдвигает состав карточек, стрелки сохраняют день недели, отдельная
+  кнопка возвращает текущую неделю, а ещё не наступившие даты приглушены.
 
 Решение о навигации оформлено в
 [DEC_002](../decisions/DECISION_002_navigatsiya_interfeysa.md).
@@ -199,6 +202,7 @@ related_knowledge: ["planirovschik_nedeli.md"]
 - **Задача-основание:** [TASK_035 — Восстановить возврат выполненной задачи в активные](../tasks/TASK_035_vosstanovit_vozvrat_vypolnennoy_zadachi_v_aktivnye/035_descr.md)
 - **Задача-основание:** [TASK_036 — Устранить двойное нажатие при смене статуса блока](../tasks/TASK_036_ustranit_dvoynoe_nazhatie_pri_smene_statusa_bloka/036_descr.md)
 - **Задача-основание:** [TASK_039 — Скрывать панель показателей и убирать архивные задачи из плана](../tasks/TASK_039_skryvat_panel_pokazateley_i_ubirat_arhivnye_zadachi_iz_plana/039_descr.md)
+- **Задача-основание:** [TASK_047 — Стабилизировать недельную навигацию итогов](../tasks/TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md)
 - **Связанная страница знаний:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [Карта кода планировщика](karta_koda_planirovschika.md)

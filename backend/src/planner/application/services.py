@@ -15,6 +15,7 @@ from planner.infrastructure.models import (
     AvailabilityOverrideSlot,
     AvailabilityProfile,
     AvailabilityProfileSlot,
+    DailyMetricSnapshot,
     Direction,
     Goal,
     FixedEventRule,
@@ -352,7 +353,7 @@ class PlannerService:
             raise ValidationError("Одна или несколько задач не найдены")
         by_id = {task.id: task for task in tasks}
         requested = set(task_ids)
-        # Метод управляет только верхним уровнем цели. Дочерние чекпоинты
+        # Метод управляет только верхним уровнем цели. Дочерние узлы
         # наследуют цель через своего родителя и не должны отцепляться при
         # перестановке корневых проектов.
         for task in list(goal.tasks):
@@ -396,7 +397,7 @@ class PlannerService:
         ) is not None
 
     def _task_can_schedule(self, context: RequestContext, task: Task) -> bool:
-        """Лист всегда можно планировать; узел с детьми — только при явном признаке чекпоинта."""
+        """Лист всегда можно планировать; группа — только при явном разрешении."""
         return task.is_checkpoint or not self._task_has_children(context, task.id)
 
     def _task_has_confirmed_block(self, context: RequestContext, task_id: str) -> bool:
@@ -414,11 +415,15 @@ class PlannerService:
             raise ValidationError("Название задачи не может быть пустым")
         parent = self._parent_task(context, parent_task_id)
         if parent and parent.status != "ACTIVE":
-            raise ValidationError("Нельзя добавлять чекпоинт к завершённой, отменённой или архивной задаче")
+            raise ValidationError("Нельзя добавлять вложенный пункт к завершённой, отменённой или архивной задаче")
         if parent and self._task_has_confirmed_block(context, parent.id) and not parent.is_checkpoint:
-            raise ValidationError("Сначала снимите родительскую задачу из плана, затем добавляйте чекпоинты")
+            # Если у бывшего листа уже есть блок, появление первого потомка не
+            # должно ломать добавление в глубину. Такой узел автоматически
+            # становится группой, которую также можно выполнять как задачу.
+            parent.is_checkpoint = True
+            parent.version += 1
         if parent and goal_id and parent.goal_id and goal_id != parent.goal_id:
-            raise ValidationError("Чекпоинт и его родитель должны принадлежать одной цели")
+            raise ValidationError("Вложенный пункт и его родитель должны принадлежать одной цели")
         goal_id = parent.goal_id if parent and parent.goal_id else goal_id
         goal = self.get_goal(context, goal_id) if goal_id else None
         direction_id = direction_id or (parent.direction_id if parent else None) or (goal.direction_id if goal else None)
@@ -438,7 +443,9 @@ class PlannerService:
             direction_id=direction_id,
             goal_id=goal.id if goal else None,
             parent_task_id=parent.id if parent else None,
-            is_checkpoint=bool(parent) if is_checkpoint is None else is_checkpoint,
+            # Новый узел пока является листом, поэтому это обычная задача даже
+            # при наличии родителя. Признак нужен только группе с потомками.
+            is_checkpoint=False,
             goal_position=(self.session.scalar(select(func.coalesce(func.max(Task.goal_position), 0)).where(Task.goal_id == goal.id, Task.parent_task_id.is_(None))) or 0) + 1 if goal and not parent else 0,
             child_position=(self.session.scalar(select(func.coalesce(func.max(Task.child_position), 0)).where(Task.parent_task_id == parent.id)) or 0) + 1 if parent else 0,
             color=color or (parent.color if parent else None) or (direction.color if direction else None),
@@ -481,14 +488,15 @@ class PlannerService:
         parent_id = values.get("parent_task_id", task.parent_task_id)
         parent = self._parent_task(context, str(parent_id) if parent_id else None, task_id=task.id)
         if parent and parent.status != "ACTIVE":
-            raise ValidationError("Нельзя сделать чекпоинт частью завершённой, отменённой или архивной задачи")
+            raise ValidationError("Нельзя поместить пункт внутрь завершённой, отменённой или архивной задачи")
         if parent and self._task_has_confirmed_block(context, parent.id) and not parent.is_checkpoint:
-            raise ValidationError("Сначала снимите родительскую задачу из плана, затем добавляйте чекпоинты")
+            parent.is_checkpoint = True
+            parent.version += 1
         direction_id = values.get("direction_id", task.direction_id)
         goal_id = values.get("goal_id", task.goal_id)
         if parent and parent.goal_id:
             if goal_id and str(goal_id) != parent.goal_id:
-                raise ValidationError("Чекпоинт и его родитель должны принадлежать одной цели")
+                raise ValidationError("Вложенный пункт и его родитель должны принадлежать одной цели")
             goal_id = parent.goal_id
         if parent and "direction_id" not in values:
             direction_id = parent.direction_id or direction_id
@@ -509,9 +517,14 @@ class PlannerService:
             raise ValidationError("Некорректные параметры задачи")
         if "repeat_rule" in values and values["repeat_rule"] not in {"NONE", "WEEKLY"}:
             raise ValidationError("Неизвестное правило повторения")
-        for key in ("title", "description", "color", "priority", "estimate_minutes", "can_split", "min_block_minutes", "preferred_block_minutes", "repeat_rule", "is_checkpoint"):
+        requested_actionable = values.get("is_checkpoint")
+        if requested_actionable is False and self._task_has_children(context, task.id) and self._task_has_confirmed_block(context, task.id):
+            raise ValidationError("Сначала уберите блоки группы из плана, затем отключите выполнение группы как задачи")
+        for key in ("title", "description", "color", "priority", "estimate_minutes", "can_split", "min_block_minutes", "preferred_block_minutes", "repeat_rule"):
             if key in values:
                 setattr(task, key, values[key])
+        if "is_checkpoint" in values:
+            task.is_checkpoint = bool(values["is_checkpoint"]) if self._task_has_children(context, task.id) else False
         task.min_block_minutes = minimum
         if "direction_id" in values or ("parent_task_id" in values and parent):
             task.direction_id = str(direction_id) if direction_id else None
@@ -556,7 +569,7 @@ class PlannerService:
     def complete_task(self, context: RequestContext, task_id: str, *, actual_minutes: int | None = None) -> Task:
         task = self.get_task(context, task_id)
         if not self._task_can_schedule(context, task):
-            raise ValidationError("Сначала завершите чекпоинты этой задачи")
+            raise ValidationError("Чистая группа завершается через выполнение вложенных задач")
         task.status = "COMPLETED"
         task.completed_at = self.now
         task.version += 1
@@ -834,7 +847,7 @@ class PlannerService:
         if task.status != "ACTIVE":
             raise ValidationError("Размещать можно только активную задачу")
         if not self._task_can_schedule(context, task):
-            raise ValidationError("В план можно добавлять только чекпоинты или конечные задачи")
+            raise ValidationError("В план можно добавлять листья или группы, отмеченные как задачи")
         workspace = self.get_workspace(context.workspace_id)
         start_at, end_at = ensure_utc(start_at, workspace.timezone), ensure_utc(end_at, workspace.timezone)
         if end_at <= start_at:
@@ -1021,7 +1034,7 @@ class PlannerService:
         if any(task.status != "ACTIVE" for task in tasks):
             raise ValidationError("Планировать можно только активные задачи")
         if any(not self._task_can_schedule(context, task) for task in tasks):
-            raise ValidationError("Для автоплана выберите чекпоинты или конечные задачи")
+            raise ValidationError("Для автоплана выберите листья или группы, отмеченные как задачи")
         if not tasks:
             raise ValidationError("Выберите хотя бы одну задачу")
         existing_blocks = self.session.scalars(select(ScheduleBlock).where(ScheduleBlock.workspace_id == context.workspace_id, ScheduleBlock.status == "CONFIRMED", ScheduleBlock.start_at < horizon_end, ScheduleBlock.end_at > horizon_start)).all()
@@ -1097,7 +1110,7 @@ class PlannerService:
             if task.status != "ACTIVE":
                 raise ValidationError("Нельзя запускать завершённую, отменённую или архивную задачу")
             if not self._task_can_schedule(context, task):
-                raise ValidationError("Фиксировать время можно только на чекпоинте или конечной задаче")
+                raise ValidationError("Фиксировать время можно только на листе или группе, отмеченной как задача")
             direction_id = direction_id or task.direction_id
         if direction_id:
             self.get_direction(context, direction_id)
@@ -1152,7 +1165,7 @@ class PlannerService:
         if task_id:
             task = self.get_task(context, task_id)
             if not self._task_can_schedule(context, task):
-                raise ValidationError("Фиксировать время можно только на чекпоинте или конечной задаче")
+                raise ValidationError("Фиксировать время можно только на листе или группе, отмеченной как задача")
             direction_id = direction_id or task.direction_id
         if direction_id:
             self.get_direction(context, direction_id)
@@ -1170,10 +1183,17 @@ class PlannerService:
 
     def list_sessions(self, context: RequestContext, *, start: datetime | None = None, end: datetime | None = None) -> list[WorkSession]:
         statement = select(WorkSession).options(selectinload(WorkSession.segments), selectinload(WorkSession.task)).where(WorkSession.workspace_id == context.workspace_id)
-        if start:
-            statement = statement.where(WorkSession.started_at < (end or datetime.max.replace(tzinfo=UTC)))
         if end:
-            statement = statement.where(WorkSession.started_at < end)
+            statement = statement.where(WorkSession.segments.any(WorkSessionSegment.start_at < end))
+        if start:
+            statement = statement.where(
+                WorkSession.segments.any(
+                    and_(
+                        WorkSessionSegment.start_at < (end or datetime.max.replace(tzinfo=UTC)),
+                        (WorkSessionSegment.end_at.is_(None) | (WorkSessionSegment.end_at > start)),
+                    )
+                )
+            )
         return list(self.session.scalars(statement.order_by(WorkSession.started_at.desc())))
 
     def list_tasks_with_sessions(self, context: RequestContext) -> tuple[list[Task], list[WorkSession]]:
@@ -1212,7 +1232,11 @@ class PlannerService:
 
         actual = sum(sum(segment_seconds(segment) for segment in session.segments) for session in sessions)
         actual_task_seconds = sum(sum(segment_seconds(segment) for segment in session.segments) for session in sessions if session.task_id)
-        blocks = self.session.scalars(select(ScheduleBlock).where(ScheduleBlock.workspace_id == context.workspace_id, ScheduleBlock.status == "CONFIRMED", ScheduleBlock.start_at < end, ScheduleBlock.end_at > start)).all()
+        blocks = self.session.scalars(
+            select(ScheduleBlock)
+            .options(selectinload(ScheduleBlock.task).selectinload(Task.direction))
+            .where(ScheduleBlock.workspace_id == context.workspace_id, ScheduleBlock.status.in_(("CONFIRMED", "COMPLETED")), ScheduleBlock.start_at < end, ScheduleBlock.end_at > start)
+        ).all()
         availability = self.availability_for_date(context, local_date)
         planned = sum(
             max(0, int((min(stored_utc(block.end_at), slot.end, end) - max(stored_utc(block.start_at), slot.start, start)).total_seconds()))
@@ -1238,7 +1262,95 @@ class PlannerService:
                 max(0, int((min(stored_utc(block.end_at), slot.end, end) - max(stored_utc(block.start_at), slot.start, start)).total_seconds()))
                 for slot in availability if stored_utc(block.end_at) > slot.start and stored_utc(block.start_at) < slot.end
             )
-        return {"date": local_date.isoformat(), "planned_seconds": planned, "actual_seconds": actual, "actual_task_seconds": actual_task_seconds, "capacity_seconds": capacity_seconds, "planned_task_count": planned_task_count, "worked_percent": min(100, round(actual_task_seconds * 100 / planned)) if planned else 0, "planning_percent": min(100, round(planned * 100 / capacity_seconds)) if capacity_seconds else 0, "sessions": sessions, "by_direction": list(by_direction.values()), "completed_count": completed_count, "overdue_count": sum(bool(task.status == "ACTIVE" and task.deadline_at and stored_utc(task.deadline_at) < self.now) for task in tasks), "carryover_count": sum(bool(task.status == "ACTIVE" and task.deadline_at and stored_utc(task.deadline_at) < end) for task in tasks)}
+        overdue_tasks: list[dict[str, object]] = []
+        day_cutoff = min(self.now, end)
+        for task in tasks:
+            if not task.deadline_at:
+                continue
+            deadline = stored_utc(task.deadline_at)
+            if utc_to_local_date(deadline, workspace.timezone) != local_date or deadline >= day_cutoff:
+                continue
+            completed_at = stored_utc(task.completed_at) if task.completed_at else None
+            if completed_at and completed_at <= deadline:
+                continue
+            overdue_tasks.append({
+                "task_id": task.id,
+                "title": task.title,
+                "deadline_at": deadline.isoformat(),
+                "completed_at": completed_at.isoformat() if completed_at else None,
+            })
+
+        actual_timeline = [
+            {
+                "session_id": work_session.id,
+                "task_id": work_session.task_id,
+                "title": work_session.task.title if work_session.task else "Общая работа",
+                "color": work_session.task.color if work_session.task else "#65737E",
+                "start_at": max(stored_utc(segment.start_at), start).isoformat(),
+                "end_at": min(stored_utc(segment.end_at) if segment.end_at else self.now, end).isoformat(),
+            }
+            for work_session in sessions
+            for segment in work_session.segments
+            if max(stored_utc(segment.start_at), start) < min(stored_utc(segment.end_at) if segment.end_at else self.now, end)
+        ]
+        planned_timeline = [
+            {
+                "block_id": block.id,
+                "task_id": block.task_id,
+                "title": block.task.title if block.task else "Запланированный блок",
+                "color": block.task.color if block.task else "#356AE6",
+                "status": block.status,
+                "start_at": max(stored_utc(block.start_at), start).isoformat(),
+                "end_at": min(stored_utc(block.end_at), end).isoformat(),
+            }
+            for block in blocks
+        ]
+        report = {
+            "date": local_date.isoformat(),
+            "planned_seconds": planned,
+            "actual_seconds": actual,
+            "actual_task_seconds": actual_task_seconds,
+            "capacity_seconds": capacity_seconds,
+            "planned_task_count": planned_task_count,
+            "worked_percent": min(100, round(actual_task_seconds * 100 / planned)) if planned else 0,
+            "planning_percent": min(100, round(planned * 100 / capacity_seconds)) if capacity_seconds else 0,
+            "sessions": sessions,
+            "actual_timeline": actual_timeline,
+            "planned_timeline": planned_timeline,
+            "by_direction": list(by_direction.values()),
+            "completed_count": completed_count,
+            "overdue_tasks": overdue_tasks,
+            "overdue_count": len(overdue_tasks),
+            "carryover_count": sum(bool(task.status == "ACTIVE" and task.deadline_at and stored_utc(task.deadline_at) < end) for task in tasks),
+            "_range_start": start,
+            "_range_end": end,
+        }
+        task_percent = min(100, round(completed_count * 100 / planned_task_count)) if planned_task_count else 0
+        report["score"] = round((int(report["worked_percent"]) + int(report["planning_percent"]) + task_percent) / 3)
+        snapshot = self.session.scalar(
+            select(DailyMetricSnapshot).where(
+                DailyMetricSnapshot.workspace_id == context.workspace_id,
+                DailyMetricSnapshot.local_date == local_date,
+            )
+        )
+        if snapshot is None:
+            snapshot = DailyMetricSnapshot(workspace_id=context.workspace_id, local_date=local_date)
+            self.session.add(snapshot)
+        snapshot.metrics = {key: value for key, value in report.items() if key != "sessions" and not key.startswith("_")}
+        snapshot.captured_at = self.now
+        report["snapshot_updated_at"] = self.now.isoformat()
+        return report
+
+    def daily_history(self, context: RequestContext, start_date: date, end_date: date) -> list[dict[str, object]]:
+        if end_date < start_date or (end_date - start_date).days > 366:
+            raise ValidationError("Диапазон истории должен содержать от 1 до 367 дней")
+        result: list[dict[str, object]] = []
+        current = start_date
+        while current <= end_date:
+            report = self.daily_report(context, current)
+            result.append({key: value for key, value in report.items() if key != "sessions" and not key.startswith("_")})
+            current += timedelta(days=1)
+        return result
 
     def weekly_report(self, context: RequestContext, week_start: date) -> dict[str, object]:
         days = [self.daily_report(context, week_start + timedelta(days=offset)) for offset in range(7)]
@@ -1249,6 +1361,21 @@ class PlannerService:
 
     def scan_overdue_notifications(self, context: RequestContext) -> list[Notification]:
         overdue = self.session.scalars(select(Task).where(Task.workspace_id == context.workspace_id, Task.status == "ACTIVE", Task.deleted_at.is_(None), Task.deadline_at.is_not(None), Task.deadline_at < self.now)).all()
+        workspace = self.get_workspace(context.workspace_id)
+        today = self.now.astimezone(ZoneInfo(workspace.timezone)).date()
+        overdue = [task for task in overdue if utc_to_local_date(task.deadline_at, workspace.timezone) == today]
+        overdue_ids = {task.id for task in overdue}
+        stale = self.session.scalars(
+            select(Notification).where(
+                Notification.workspace_id == context.workspace_id,
+                Notification.kind == "OVERDUE",
+                Notification.status == "OPEN",
+            )
+        ).all()
+        for item in stale:
+            if item.task_id not in overdue_ids:
+                item.status = "RESOLVED"
+                item.resolved_at = self.now
         created: list[Notification] = []
         for task in overdue:
             key = f"OVERDUE:{task.id}"
@@ -1257,9 +1384,6 @@ class PlannerService:
                 item = Notification(workspace_id=context.workspace_id, task_id=task.id, kind="OVERDUE", deduplication_key=key, title=f"Просрочена задача: {task.title}", body="Перепланируйте задачу или измените срок.")
                 self.session.add(item)
                 created.append(item)
-            elif existing.status != "OPEN":
-                existing.status = "OPEN"
-                existing.resolved_at = None
         state = self.session.scalar(select(WorkspaceState).where(WorkspaceState.workspace_id == context.workspace_id))
         if state:
             state.notification_scan_at = self.now

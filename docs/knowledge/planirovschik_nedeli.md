@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Архитектура и предметная модель планировщика недели"
 status: active
-updated: 2026-09-16
+updated: 2026-09-19
 summary: "Каноническая модель личного недельного планировщика с доступным временем, задачами, размещением и фактическими сессиями."
 source_tasks: ["TASK_001", "TASK_003", "TASK_014", "TASK_015", "TASK_016", "TASK_017", "TASK_018", "TASK_019", "TASK_022", "TASK_023"]
 source_pages: ["../../tz/README.md"]

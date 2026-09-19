@@ -8,7 +8,7 @@ title: "Провести аудит быстродействия и логики
 slug: "provesti_audit_bystrodeystviya_i_logiki_vzaimodeystviya_s_pl"
 status: done
 created: 2026-09-10
-updated: 2026-09-16
+updated: 2026-09-19
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_021"]
