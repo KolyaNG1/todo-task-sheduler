@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "План поэтапной переработки планировщика"
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 summary: "Безопасная последовательность исправлений и модульного развития планировщика без одномоментного переписывания."
 source_tasks: ["TASK_024"]
 source_pages: ["audit_kachestva_i_masshtabiruemosti_planirovschika.md", "matritsa_pokrytiya_trebovaniy_planirovschika.md", "../../BACKEND_DESIGN.md"]

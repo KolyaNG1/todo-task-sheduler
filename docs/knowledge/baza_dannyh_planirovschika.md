@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "База данных многопользовательского планировщика"
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 summary: "Нормализованная схема из 22 таблиц для совместного планирования задач, времени и факта работы; многопользовательская структура предусмотрена, внешний вход пока не реализован."
 source_tasks: ["TASK_045"]
 source_pages: ["../../backend/src/planner/infrastructure/models.py"]

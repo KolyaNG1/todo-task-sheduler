@@ -853,11 +853,6 @@ class PlannerService:
             result.append({"id": event.id, "title": event.title, "color": event.color, "weekday": event.weekday, "local_date": event.local_date, "start_at": self._local_to_utc(local_date, event.start_minute, workspace.timezone), "end_at": self._local_to_utc(local_date, event.end_minute, workspace.timezone)})
         return result
 
-    def _validate_block_grid(self, workspace: Workspace, start_at: datetime) -> None:
-        local = stored_utc(start_at).astimezone(ZoneInfo(workspace.timezone))
-        if local.minute % workspace.grid_step_minutes or local.second or local.microsecond:
-            raise ValidationError(f"Начало блока должно быть кратно {workspace.grid_step_minutes} минутам")
-
     def _remaining_task_minutes(self, context: RequestContext, task: Task, *, exclude_block_id: str | None = None) -> int:
         statement = select(ScheduleBlock).where(ScheduleBlock.workspace_id == context.workspace_id, ScheduleBlock.task_id == task.id, ScheduleBlock.status == "CONFIRMED")
         if exclude_block_id:
@@ -875,7 +870,6 @@ class PlannerService:
         start_at, end_at = ensure_utc(start_at, workspace.timezone), ensure_utc(end_at, workspace.timezone)
         if end_at <= start_at:
             raise ValidationError("Конец блока должен быть позже начала")
-        self._validate_block_grid(workspace, start_at)
         duration = int((end_at - start_at).total_seconds() // 60)
         remaining = self._remaining_task_minutes(context, task)
         if duration > remaining:
@@ -903,7 +897,6 @@ class PlannerService:
         proposed_end = ensure_utc(end_at, workspace.timezone) if end_at else stored_utc(block.end_at)
         if proposed_end <= proposed_start:
             raise ValidationError("Конец блока должен быть позже начала")
-        self._validate_block_grid(workspace, proposed_start)
         if block.task:
             duration = int((proposed_end - proposed_start).total_seconds() // 60)
             remaining = self._remaining_task_minutes(context, block.task, exclude_block_id=block.id)
@@ -1023,19 +1016,45 @@ class PlannerService:
             .order_by(ScheduleBlock.start_at)
         )
         blocks = list(self.session.scalars(block_statement))
-        deadline_tasks = self.session.scalars(
+        deadline_tasks = list(self.session.scalars(
             select(Task).where(
                 Task.workspace_id == context.workspace_id,
                 Task.status == "ACTIVE",
                 Task.deleted_at.is_(None),
                 Task.deadline_at.is_not(None),
             )
-        ).all()
-        deadline_counts: dict[date, int] = {}
+        ))
+        deadline_tasks = [task for task in deadline_tasks if self._task_can_schedule(context, task)]
+        deadline_task_ids = [task.id for task in deadline_tasks]
+        planned_blocks = list(self.session.scalars(
+            select(ScheduleBlock).where(
+                ScheduleBlock.workspace_id == context.workspace_id,
+                ScheduleBlock.status == "CONFIRMED",
+                ScheduleBlock.task_id.in_(deadline_task_ids),
+            )
+        )) if deadline_task_ids else []
+        planned_by_task: dict[str, int] = {}
+        for block in planned_blocks:
+            planned_by_task[block.task_id] = planned_by_task.get(block.task_id, 0) + int((stored_utc(block.end_at) - stored_utc(block.start_at)).total_seconds() // 60)
+        deadlines_by_date: dict[date, list[dict[str, object]]] = {}
         for task in deadline_tasks:
             local_deadline = utc_to_local_date(task.deadline_at, timezone_name)
-            deadline_counts[local_deadline] = deadline_counts.get(local_deadline, 0) + 1
+            planned_minutes = planned_by_task.get(task.id, 0)
+            deadlines_by_date.setdefault(local_deadline, []).append({
+                "id": task.id,
+                "title": task.title,
+                "deadline_at": stored_utc(task.deadline_at),
+                "estimate_minutes": task.estimate_minutes,
+                "planned_minutes": planned_minutes,
+                "remaining_minutes": max(0, task.estimate_minutes - planned_minutes),
+            })
         days: list[dict] = []
+        workload_deadlines = [item for offset in range(min(7, calendar_days)) for item in deadlines_by_date.get(week_start + timedelta(days=offset), [])]
+        required_workload_minutes = sum(int(item["remaining_minutes"]) for item in workload_deadlines)
+        week_workload_end = self._local_to_utc(week_start + timedelta(days=min(7, calendar_days)), 0, timezone_name)
+        workload_end = min(week_workload_end, max((item["deadline_at"] for item in workload_deadlines), default=range_start))
+        workload_start = max(range_start, self.now)
+        available_workload_minutes = 0
         for offset in range(calendar_days):
             current = week_start + timedelta(days=offset)
             availability = self.availability_for_date(context, current)
@@ -1045,14 +1064,33 @@ class PlannerService:
             day_blocks = [block for block in blocks if stored_utc(block.start_at) < day_end and stored_utc(block.end_at) > day_start]
             occupied = [TimeInterval(stored_utc(block.start_at), stored_utc(block.end_at)) for block in day_blocks] + [TimeInterval(event["start_at"], event["end_at"]) for event in events]
             free = subtract_intervals(availability, occupied)
-            days.append({"date": current, "availability": availability, "fixed_events": events, "blocks": day_blocks, "deadline_count": deadline_counts.get(current, 0), "capacity_minutes": sum(item.minutes for item in availability), "free_minutes": sum(item.minutes for item in free)})
-        return {"workspace": workspace, "week_start": week_start, "planning_revision": self.session.scalar(select(WorkspaceState.planning_revision).where(WorkspaceState.workspace_id == context.workspace_id)), "days": days}
+            if offset < 7 and workload_start < workload_end:
+                available_workload_minutes += sum(
+                    int((min(item.end, workload_end) - max(item.start, workload_start)).total_seconds() // 60)
+                    for item in free
+                    if max(item.start, workload_start) < min(item.end, workload_end)
+                )
+            day_deadlines = sorted(deadlines_by_date.get(current, []), key=lambda item: (item["deadline_at"], item["title"]))
+            days.append({"date": current, "availability": availability, "fixed_events": events, "blocks": day_blocks, "deadline_count": len(day_deadlines), "deadline_tasks": day_deadlines, "capacity_minutes": sum(item.minutes for item in availability), "free_minutes": sum(item.minutes for item in free)})
+        return {
+            "workspace": workspace,
+            "week_start": week_start,
+            "planning_revision": self.session.scalar(select(WorkspaceState.planning_revision).where(WorkspaceState.workspace_id == context.workspace_id)),
+            "deadline_workload": {
+                "task_count": len(workload_deadlines),
+                "required_minutes": required_workload_minutes,
+                "available_minutes": available_workload_minutes,
+                "balance_minutes": available_workload_minutes - required_workload_minutes,
+            },
+            "days": days,
+        }
 
     def create_plan(self, context: RequestContext, *, task_ids: list[str], horizon_start: datetime, horizon_end: datetime) -> PlannerRun:
         workspace = self.get_workspace(context.workspace_id)
         horizon_start, horizon_end = ensure_utc(horizon_start, workspace.timezone), ensure_utc(horizon_end, workspace.timezone)
+        horizon_start = max(horizon_start, self.now)
         if horizon_end <= horizon_start:
-            raise ValidationError("Горизонт планирования задан неверно")
+            raise ValidationError("Выбранный период уже закончился. Автоплан начинает работу не раньше текущего момента")
         tasks = [self.get_task(context, task_id) for task_id in task_ids]
         if any(task.status != "ACTIVE" for task in tasks):
             raise ValidationError("Планировать можно только активные задачи")

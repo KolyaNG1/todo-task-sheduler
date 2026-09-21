@@ -8,7 +8,7 @@ title: "Спроектировать системную архитектуру �
 slug: "sproektirovat_sistemnuyu_arhitekturu_bekenda"
 status: done
 created: 2026-09-08
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_001", "TASK_002"]

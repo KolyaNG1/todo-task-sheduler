@@ -8,7 +8,7 @@ title: "Стабилизировать недельную навигацию и�
 slug: "stabilizirovat_nedelnuyu_navigatsiyu_itogov"
 status: done
 created: 2026-09-19
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_046"]

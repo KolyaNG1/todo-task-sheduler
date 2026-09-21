@@ -8,7 +8,7 @@ title: "Устранить двойное нажатие при смене ст�
 slug: "ustranit_dvoynoe_nazhatie_pri_smene_statusa_bloka"
 status: done
 created: 2026-09-12
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_035"]

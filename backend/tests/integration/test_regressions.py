@@ -2,6 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 
+from planner.api.router import get_service
+from planner.application.services import PlannerService
 from planner.infrastructure.settings import Settings
 from planner.infrastructure.models import Notification
 from planner.main import create_app
@@ -10,6 +12,83 @@ from planner.main import create_app
 def _client(tmp_path):
     app = create_app(Settings(project_root=tmp_path, artifacts_dir=tmp_path / "artifacts"))
     return TestClient(app)
+
+
+def _use_fixed_time(app, moment: datetime) -> None:
+    def fixed_service():
+        session = app.state.session_factory()
+        try:
+            yield PlannerService(session, now=moment)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_service] = fixed_service
+
+
+def test_week_exposes_deadline_tasks_and_remaining_capacity(tmp_path) -> None:
+    fixed_now = datetime(2030, 1, 10, 10, 7, tzinfo=UTC)
+    app = create_app(Settings(project_root=tmp_path, artifacts_dir=tmp_path / "artifacts"))
+    _use_fixed_time(app, fixed_now)
+    with TestClient(app) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        client.put(
+            f"/api/v1/workspaces/{workspace}/availability/dates/2030-01-10",
+            json={"slots": [{"start_minute": 780, "end_minute": 900}]},
+        )
+        task = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Сдать отчёт", "estimate_minutes": 120, "can_split": True, "deadline_at": "2030-01-10T12:00:00+00:00"},
+        ).json()
+        block = client.post(
+            f"/api/v1/workspaces/{workspace}/blocks",
+            json={"task_id": task["id"], "start_at": "2030-01-10T10:30:00+00:00", "end_at": "2030-01-10T11:00:00+00:00"},
+        )
+        assert block.status_code == 201
+
+        week = client.get(f"/api/v1/workspaces/{workspace}/week", params={"week_start": "2030-01-07"}).json()
+        thursday = week["days"][3]
+        assert thursday["deadline_count"] == 1
+        assert thursday["deadline_tasks"][0]["title"] == "Сдать отчёт"
+        assert thursday["deadline_tasks"][0]["remaining_minutes"] == 90
+        assert week["deadline_workload"] == {
+            "task_count": 1,
+            "required_minutes": 90,
+            "available_minutes": 83,
+            "balance_minutes": -7,
+        }
+
+
+def test_auto_plan_clamps_horizon_to_now_and_rejects_past_week(tmp_path) -> None:
+    fixed_now = datetime(2030, 1, 10, 10, 7, tzinfo=UTC)
+    app = create_app(Settings(project_root=tmp_path, artifacts_dir=tmp_path / "artifacts"))
+    _use_fixed_time(app, fixed_now)
+    with TestClient(app) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        client.put(
+            f"/api/v1/workspaces/{workspace}/availability/dates/2030-01-10",
+            json={"slots": [{"start_minute": 780, "end_minute": 900}]},
+        )
+        task = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Не планировать в прошлое", "estimate_minutes": 30},
+        ).json()
+
+        plan = client.post(
+            f"/api/v1/workspaces/{workspace}/planner/runs",
+            json={"task_ids": [task["id"]], "horizon_start": "2030-01-07T00:00:00+00:00", "horizon_end": "2030-01-11T00:00:00+00:00"},
+        )
+        assert plan.status_code == 201
+        assert datetime.fromisoformat(plan.json()["proposals"][0]["start_at"]) >= fixed_now
+
+        past = client.post(
+            f"/api/v1/workspaces/{workspace}/planner/runs",
+            json={"task_ids": [task["id"]], "horizon_start": "2030-01-01T00:00:00+00:00", "horizon_end": "2030-01-07T00:00:00+00:00"},
+        )
+        assert past.status_code == 422
 
 
 def test_task_cannot_be_fully_placed_twice_and_edit_keeps_plan_status(tmp_path) -> None:
@@ -24,6 +103,35 @@ def test_task_cannot_be_fully_placed_twice_and_edit_keeps_plan_status(tmp_path) 
         edited = client.patch(f"/api/v1/workspaces/{workspace}/tasks/{task['id']}", json={"description": "Билеты"})
         assert edited.status_code == 200
         assert edited.json()["planning_status"] == "PLANNED"
+
+
+def test_manual_block_accepts_arbitrary_minutes_on_create_and_update(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        task = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Точный промежуток", "estimate_minutes": 60},
+        ).json()
+        created = client.post(
+            f"/api/v1/workspaces/{workspace}/blocks",
+            json={
+                "task_id": task["id"],
+                "start_at": "2030-01-07T06:10:00+00:00",
+                "end_at": "2030-01-07T07:10:00+00:00",
+            },
+        )
+        assert created.status_code == 201
+        moved = client.patch(
+            f"/api/v1/workspaces/{workspace}/blocks/{created.json()['id']}",
+            json={
+                "start_at": "2030-01-07T06:20:00+00:00",
+                "end_at": "2030-01-07T07:20:00+00:00",
+                "expected_version": created.json()["version"],
+            },
+        )
+        assert moved.status_code == 200
+        assert moved.json()["start_at"] == "2030-01-07T06:20:00+00:00"
+        assert moved.json()["end_at"] == "2030-01-07T07:20:00+00:00"
 
 
 def test_calendar_conflicts_are_recalculated_and_block_has_own_completion(tmp_path) -> None:

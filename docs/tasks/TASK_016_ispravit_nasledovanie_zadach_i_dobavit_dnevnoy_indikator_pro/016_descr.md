@@ -8,7 +8,7 @@ title: "Исправить наследование задач и добавит
 slug: "ispravit_nasledovanie_zadach_i_dobavit_dnevnoy_indikator_pro"
 status: done
 created: 2026-09-10
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_015"]
@@ -83,6 +83,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Связанная задача:** [TASK_015 — Проверить фактическую длительность автоматического блока](../TASK_015_proverit_fakticheskuyu_dlitelnost_avtomaticheskogo_bloka/015_descr.md)
 - **Связанная задача:** [TASK_017 — Добавить плавную навигацию по неделям](../TASK_017_dobavit_plavnuyu_navigatsiyu_po_nedelyam/017_descr.md)
+- **Связанная задача:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
 - **Созданное или обновлённое знание:** [Архитектура и предметная модель планировщика недели](../../knowledge/planirovschik_nedeli.md)
 <!-- AUTO:PAGE_LINKS:END -->
 

@@ -8,7 +8,7 @@ title: "Добавить плавную навигацию по неделям"
 slug: "dobavit_plavnuyu_navigatsiyu_po_nedelyam"
 status: done
 created: 2026-09-10
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_016"]
@@ -81,6 +81,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Связанная задача:** [TASK_016 — Исправить наследование задач и добавить дневной индикатор прогресса](../TASK_016_ispravit_nasledovanie_zadach_i_dobavit_dnevnoy_indikator_pro/016_descr.md)
 - **Связанная задача:** [TASK_018 — Исправить календарный ползунок и компоновку индикатора дня](../TASK_018_ispravit_kalendarnyy_polzunok_i_komponovku_indikatora_dnya/018_descr.md)
+- **Связанная задача:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
 - **Созданное или обновлённое знание:** [Архитектура и предметная модель планировщика недели](../../knowledge/planirovschik_nedeli.md)
 <!-- AUTO:PAGE_LINKS:END -->
 

@@ -8,7 +8,7 @@ title: "Переработать иерархию задач и дневную �
 slug: "pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik"
 status: done
 created: 2026-09-16
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_027", "TASK_028", "TASK_033"]
@@ -149,6 +149,7 @@ root_record: null
 - **Связанная задача:** [TASK_033 — Согласовать статусы, архив и дерево задач](../TASK_033_soglasovat_statusy_arhiv_i_derevo_zadach/033_descr.md)
 - **Связанная задача:** [TASK_047 — Стабилизировать недельную навигацию итогов](../TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md)
 - **Связанная задача:** [TASK_049 — Преобразовать направления в проекты](../TASK_049_preobrazovat_napravleniya_v_proekty/049_descr.md)
+- **Связанная задача:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
 - **Связанное решение:** [DEC_005 — Дерево задач и единый источник фактического времени](../../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Созданное или обновлённое знание:** [Архитектура бэкенда планировщика](../../knowledge/arhitektura_bekenda.md)
 <!-- AUTO:PAGE_LINKS:END -->

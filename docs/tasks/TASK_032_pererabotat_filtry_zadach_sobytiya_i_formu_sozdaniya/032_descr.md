@@ -8,7 +8,7 @@ title: "Переработать фильтры задач, события и ф
 slug: "pererabotat_filtry_zadach_sobytiya_i_formu_sozdaniya"
 status: done
 created: 2026-09-12
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_031"]

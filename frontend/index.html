@@ -6,7 +6,7 @@
     <meta name="description" content="Личный планировщик недели" />
     <title>Планировщик недели</title>
     <link rel="icon" type="image/png" href="assets/palm-avatar.png?v=1" />
-    <link rel="stylesheet" href="styles.css?v=20260921-2" />
+    <link rel="stylesheet" href="styles.css?v=20260921-3" />
   </head>
   <body>
     <div class="app-shell">
@@ -76,6 +76,7 @@
           </div>
           <button class="session-restore" id="session-restore" hidden>Показать рабочую сессию</button>
           <div class="toolbar-actions">
+            <div class="capacity deadline-capacity"><span>ДЕДЛАЙНЫ НЕДЕЛИ</span><strong id="week-deadline-load">—</strong><small id="week-deadline-balance">—</small></div>
             <div class="capacity"><span>СВОБОДНО</span><strong id="week-capacity">—</strong></div>
             <button class="button secondary" id="edit-worktime">Рабочее время</button>
             <button class="button secondary" id="record-worktime">Зафиксировать работу</button>
@@ -120,6 +121,6 @@
       </form>
     </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" id="toast-close" aria-label="Закрыть уведомление">×</button></div>
-    <script type="module" src="app.js?v=20260921-2"></script>
+    <script type="module" src="app.js?v=20260921-3"></script>
   </body>
 </html>

@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Архитектура бэкенда планировщика"
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 summary: "Клиентонезависимый прикладной слой, нормализованная SQLite и переносимый каталог артефактов поддерживают календарь, жизненный цикл задач, фактическое время и вычисляемые итоги."
 source_tasks: ["TASK_003", "TASK_005", "TASK_007", "TASK_008", "TASK_010", "TASK_011", "TASK_027", "TASK_028", "TASK_029", "TASK_031", "TASK_033", "TASK_034", "TASK_037", "TASK_038", "TASK_040", "TASK_045", "TASK_046"]
 source_pages: ["../../BACKEND_DESIGN.md", "../../IMPLEMENTATION_PLAN.md", "../../backend/README.md", "../../artifacts/README.md"]

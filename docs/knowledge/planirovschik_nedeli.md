@@ -2,9 +2,9 @@
 doc_type: knowledge
 title: "Архитектура и предметная модель планировщика недели"
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 summary: "Каноническая модель личного недельного планировщика с доступным временем, задачами, размещением и фактическими сессиями."
-source_tasks: ["TASK_001", "TASK_003", "TASK_014", "TASK_015", "TASK_016", "TASK_017", "TASK_018", "TASK_019", "TASK_022", "TASK_023", "TASK_049"]
+source_tasks: ["TASK_001", "TASK_003", "TASK_014", "TASK_015", "TASK_016", "TASK_017", "TASK_018", "TASK_019", "TASK_022", "TASK_023", "TASK_049", "TASK_050"]
 source_pages: ["../../tz/README.md"]
 related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_bekenda.md"]
 ---
@@ -56,6 +56,10 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
   отчёт являются частью полного пользовательского цикла.
 - **Подтверждено:** завершение задачи не отменяет её подтверждённые блоки:
   календарь сохраняет их как историю и показывает завершёнными.
+- **Подтверждено:** недельный снимок содержит не только число дедлайнов дня, но
+  и соответствующие задачи с оставшейся оценкой. Недельная нагрузка вычитает
+  уже подтверждённые минуты и сравнивается со свободным временем от текущего
+  момента до сроков.
 
 ## Принятые положения
 
@@ -65,6 +69,12 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
   после проверки версии календаря и подтверждения пользователя.
 - **Решение:** ручные блоки закрепляются по умолчанию и не перемещаются следующим
   автоматическим запуском.
+- **Решение:** нижняя граница автоматического планирования задаётся сервером как
+  максимум между запрошенным началом и текущим моментом; полностью прошедший
+  диапазон отклоняется.
+- **Решение:** редактор календарного блока может одновременно менять обычные
+  поля задачи и размещение блока. Ручное изменение блока принимает минуты и не
+  меняет дедлайн задачи без отдельного явного действия.
 - **Решение:** дефицит меньше 30 минут создаёт отдельный конфликтный вариант,
   который нельзя подтвердить незаметно вместе с безопасными блоками.
 - **Решение:** предметная логика не зависит от FastAPI, SQLite, браузера,
@@ -108,6 +118,7 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
 
 - [TASK_001 — подготовка ТЗ](../tasks/TASK_001_podgotovit_tz_prilozheniya_planirovschika_nedeli/001_descr.md)
 - [TASK_049 — преобразование направлений в проекты](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_concl.md)
+- [TASK_050 — недельные дедлайны и граница автоплана](../tasks/TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_concl.md)
 - [Комплект ТЗ](../../tz/README.md)
 - [Критерии приёмки](../../tz/05_kriterii_priemki_i_etapy.md)
 
@@ -125,6 +136,7 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
 - **Задача-основание:** [TASK_022 — Провести аудит быстродействия и логики взаимодействия с планом](../tasks/TASK_022_provesti_audit_bystrodeystviya_i_logiki_vzaimodeystviya_s_pl/022_descr.md)
 - **Задача-основание:** [TASK_023 — Исправить немедленное отображение блоков автоплана](../tasks/TASK_023_ispravit_nemedlennoe_otobrazhenie_blokov_avtoplana/023_descr.md)
 - **Задача-основание:** [TASK_049 — Преобразовать направления в проекты](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_descr.md)
+- **Задача-основание:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../tasks/TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
 - **Связанная страница знаний:** [Архитектура бэкенда планировщика](arhitektura_bekenda.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [База данных многопользовательского планировщика](baza_dannyh_planirovschika.md)

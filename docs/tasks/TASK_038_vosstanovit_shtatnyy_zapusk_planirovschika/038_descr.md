@@ -8,7 +8,7 @@ title: "Восстановить штатный запуск планировщ�
 slug: "vosstanovit_shtatnyy_zapusk_planirovschika"
 status: done
 created: 2026-09-12
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_037"]

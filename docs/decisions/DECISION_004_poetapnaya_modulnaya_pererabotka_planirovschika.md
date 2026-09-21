@@ -4,7 +4,7 @@ decision_id: "DEC_004"
 title: "Поэтапная модульная переработка планировщика"
 status: proposed
 created: 2026-09-10
-updated: 2026-09-21
+updated: 2026-09-22
 summary: "Предлагается сохранять совместимость API и постепенно заменять монолитные участки после исправления схемы, времени и предметных инвариантов."
 related_tasks: ["TASK_024"]
 related_knowledge: ["../knowledge/audit_kachestva_i_masshtabiruemosti_planirovschika.md", "../knowledge/plan_refaktoringa_planirovschika.md", "../knowledge/karta_koda_planirovschika.md"]

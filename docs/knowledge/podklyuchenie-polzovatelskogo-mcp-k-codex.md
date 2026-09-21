@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Подключение пользовательского MCP-сервера к Codex"
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 summary: "Пользовательский MCP-сервис подключается настройкой клиента и авторизации, а не обучением модели."
 source_tasks: ["TASK_004"]
 source_pages: ["../sources/SRC_001_openai_mcp_apps.md"]

@@ -8,7 +8,7 @@ title: "Исправить прокрутку и жизненный цикл з�
 slug: "ispravit_prokrutku_i_zhiznennyy_tsikl_zadach_v_interfeyse"
 status: done
 created: 2026-09-11
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_030"]

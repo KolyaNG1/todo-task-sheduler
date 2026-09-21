@@ -8,7 +8,7 @@ title: "Переработать планировщик и закрыть ауд
 slug: "pererabotat_planirovschik_i_zakryt_audit"
 status: active
 created: 2026-09-10
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_024", "TASK_007"]
@@ -124,6 +124,7 @@ root_record: null
 - **Дочерняя задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
 - **Дочерняя задача:** [TASK_047 — Стабилизировать недельную навигацию итогов](../TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md)
 - **Дочерняя задача:** [TASK_049 — Преобразовать направления в проекты](../TASK_049_preobrazovat_napravleniya_v_proekty/049_descr.md)
+- **Дочерняя задача:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
 - **Связанная задача:** [TASK_007 — Довести первый релиз планировщика до цельного приложения](../TASK_007_dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya/007_descr.md)
 - **Связанная задача:** [TASK_024 — Провести полный аудит кода и масштабируемости планировщика](../TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md)
 - **Связанная задача:** [TASK_026 — Опубликовать планировщик в удалённом репозитории](../TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md)

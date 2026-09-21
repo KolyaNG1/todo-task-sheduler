@@ -8,7 +8,7 @@ title: "Преобразовать направления в проекты"
 slug: "preobrazovat_napravleniya_v_proekty"
 status: done
 created: 2026-09-21
-updated: 2026-09-21
+updated: 2026-09-22
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_046"]
