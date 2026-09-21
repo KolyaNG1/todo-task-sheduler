@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Информационная архитектура интерфейса планировщика"
 status: active
-updated: 2026-09-19
+updated: 2026-09-21
 summary: "Пять разделов и контекстные панели покрывают ежедневные и административные сценарии планировщика; все основные разделы имеют рабочий локальный срез."
 source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039", "TASK_047", "TASK_048"]
 source_pages: ["../../DESIGN.md", "../../frontend/index.html", "../../frontend/app.js"]

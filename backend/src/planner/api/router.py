@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
-from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, session_view, session_view_between, task_collection_view, task_detail_view, task_view
+from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, project_view, session_view, session_view_between, task_collection_view, task_detail_view, task_view
 from planner.api.schemas import (
     AvailabilityProfileReplace,
     CompletionRequest,
@@ -23,6 +23,8 @@ from planner.api.schemas import (
     ManualSessionCreate,
     PlannerApply,
     PlannerRunCreate,
+    ProjectCreate,
+    ProjectUpdate,
     ScheduleBlockCreate,
     SessionStart,
     TaskCreate,
@@ -74,7 +76,40 @@ def startup(workspace_id: str, week_start: date, days: int = 7, service: Planner
     week = service.week_view(context, week_start, days)
     profile = service.default_availability(context)
     tasks = service.list_tasks(context, include_completed=True)
-    return {"week": week_response(week), "active_session": session_view(service.active_session(context), now=service.now), "directions": [direction_view(item) for item in service.list_directions(context)], "tasks": task_collection_view(tasks, now=service.now), "default_availability": [{"weekday": slot.weekday, "start_minute": slot.start_minute, "end_minute": slot.end_minute} for slot in profile.slots] if profile else []}
+    projects = [project_view(item, now=service.now) for item in service.list_projects(context)]
+    return {"week": week_response(week), "active_session": session_view(service.active_session(context), now=service.now), "projects": projects, "directions": projects, "tasks": task_collection_view(tasks, now=service.now), "default_availability": [{"weekday": slot.weekday, "start_minute": slot.start_minute, "end_minute": slot.end_minute} for slot in profile.slots] if profile else []}
+
+
+@router.get("/workspaces/{workspace_id}/projects")
+def list_projects(workspace_id: str, service: PlannerService = Depends(get_service)) -> list[dict]:
+    context = context_for(service, workspace_id)
+    return [project_view(item, now=service.now) for item in service.list_projects(context)]
+
+
+@router.post("/workspaces/{workspace_id}/projects", status_code=status.HTTP_201_CREATED)
+def create_project(workspace_id: str, body: ProjectCreate, service: PlannerService = Depends(get_service)) -> dict:
+    item = service.create_direction(context_for(service, workspace_id), **body.model_dump())
+    service.session.flush()
+    service.session.refresh(item, attribute_names=["tasks"])
+    return project_view(item, now=service.now)
+
+
+@router.get("/workspaces/{workspace_id}/projects/{project_id}")
+def get_project(workspace_id: str, project_id: str, service: PlannerService = Depends(get_service)) -> dict:
+    return project_view(service.get_project(context_for(service, workspace_id), project_id), now=service.now, detailed=True)
+
+
+@router.patch("/workspaces/{workspace_id}/projects/{project_id}")
+def update_project(workspace_id: str, project_id: str, body: ProjectUpdate, service: PlannerService = Depends(get_service)) -> dict:
+    item = service.update_direction(context_for(service, workspace_id), project_id, body.model_dump(exclude_unset=True))
+    service.session.flush()
+    return project_view(service.get_project(context_for(service, workspace_id), item.id), now=service.now)
+
+
+@router.delete("/workspaces/{workspace_id}/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def archive_project(workspace_id: str, project_id: str, service: PlannerService = Depends(get_service)) -> Response:
+    service.archive_direction(context_for(service, workspace_id), project_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/workspaces/{workspace_id}/directions")

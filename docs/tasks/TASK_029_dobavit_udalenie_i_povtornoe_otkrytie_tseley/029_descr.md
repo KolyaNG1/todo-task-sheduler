@@ -8,7 +8,7 @@ title: "Добавить удаление и повторное открытие
 slug: "dobavit_udalenie_i_povtornoe_otkrytie_tseley"
 status: done
 created: 2026-09-11
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_028"]

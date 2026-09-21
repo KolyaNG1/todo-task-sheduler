@@ -4,9 +4,9 @@ decision_id: "DEC_005"
 title: "Дерево задач и единый источник фактического времени"
 status: accepted
 created: 2026-09-11
-updated: 2026-09-19
+updated: 2026-09-21
 summary: "Крупные задачи образуют упорядоченное дерево обычных задач; конечные и явно отмеченные промежуточные чекпоинты допускаются в календарь, а сессии и интервалы остаются единым источником фактического времени."
-related_tasks: ["TASK_027", "TASK_028", "TASK_029", "TASK_033", "TASK_034", "TASK_046"]
+related_tasks: ["TASK_027", "TASK_028", "TASK_029", "TASK_033", "TASK_034", "TASK_046", "TASK_049"]
 related_knowledge: ["../knowledge/arhitektura_bekenda.md", "../knowledge/karta_koda_planirovschika.md"]
 source_pages: ["../../backend/src/planner/infrastructure/models.py", "../../backend/src/planner/application/services.py", "../../backend/src/planner/api/router.py", "../../backend/src/planner/api/presenters.py", "../../frontend/app.js"]
 supersedes: []
@@ -51,6 +51,15 @@ supersedes: []
    `is_checkpoint = true` у такой группы означает, что у неё есть ещё и
    собственная выполняемая работа. Это единая модель `Task`: вид в списке не
    изменяет ни положение в дереве, ни данные о сроке, сессиях и блоках.
+10. Проект является развитием прежнего направления на тех же идентификаторах и
+    внешних ключах. Новый программный интерфейс `/projects` существует рядом со
+    старым `/directions`, пока слой совместимости нужен сохранённым клиентам.
+11. Срочность проекта определяется ближайшим сроком активной выполняемой задачи:
+    менее 24 часов — оранжевый сигнал, прошедший срок — красный с более высоким
+    приоритетом.
+12. Деревья цели и проекта используют те же карточки, что список задач.
+    Глубина показывается отступом и соединительной линией, не меняя модель,
+    порядок, сворачивание и действия узла.
 
 ## Последствия
 
@@ -72,6 +81,7 @@ supersedes: []
 - [TASK_033](../tasks/TASK_033_soglasovat_statusy_arhiv_i_derevo_zadach/033_concl.md)
 - [TASK_034](../tasks/TASK_034_ispravit_regressii_statusov_i_nasledovaniya_zadach/034_concl.md)
 - [TASK_046](../tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_concl.md)
+- [TASK_049](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_concl.md)
 - [Архитектура бэкенда](../knowledge/arhitektura_bekenda.md)
 - [Карта кода](../knowledge/karta_koda_planirovschika.md)
 
@@ -84,6 +94,7 @@ supersedes: []
 - **Связанная задача:** [TASK_033 — Согласовать статусы, архив и дерево задач](../tasks/TASK_033_soglasovat_statusy_arhiv_i_derevo_zadach/033_descr.md)
 - **Связанная задача:** [TASK_034 — Исправить регрессии статусов и наследования задач](../tasks/TASK_034_ispravit_regressii_statusov_i_nasledovaniya_zadach/034_descr.md)
 - **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
+- **Связанная задача:** [TASK_049 — Преобразовать направления в проекты](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_descr.md)
 - **Связанное знание:** [Архитектура бэкенда планировщика](../knowledge/arhitektura_bekenda.md)
 - **Связанное знание:** [Карта кода планировщика](../knowledge/karta_koda_planirovschika.md)
 <!-- AUTO:PAGE_LINKS:END -->

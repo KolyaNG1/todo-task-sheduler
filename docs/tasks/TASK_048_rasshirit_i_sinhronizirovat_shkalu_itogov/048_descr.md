@@ -8,7 +8,7 @@ title: "Расширить и синхронизировать шкалу ито
 slug: "rasshirit_i_sinhronizirovat_shkalu_itogov"
 status: done
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: "TASK_047"
 depends_on: []
 related_tasks: []

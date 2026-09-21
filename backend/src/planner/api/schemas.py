@@ -11,6 +11,7 @@ class DirectionCreate(BaseModel):
     color: str = Field(default="#356AE6", pattern=r"^#[0-9A-Fa-f]{6}$")
     default_priority: int = 3
     default_estimate_minutes: int | None = Field(default=None, gt=0)
+    default_deadline_at: datetime | None = None
 
 
 class DirectionUpdate(BaseModel):
@@ -19,6 +20,13 @@ class DirectionUpdate(BaseModel):
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     default_priority: int | None = None
     default_estimate_minutes: int | None = Field(default=None, gt=0)
+    default_deadline_at: datetime | None = None
+
+
+# В базе сохраняется историческое имя Direction, а новый публичный интерфейс
+# использует термин «проект». Общая схема оставляет старые адреса совместимыми.
+ProjectCreate = DirectionCreate
+ProjectUpdate = DirectionUpdate
 
 
 class TaskCreate(BaseModel):

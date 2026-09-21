@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Аудит качества и масштабируемости планировщика"
 status: active
-updated: 2026-09-19
+updated: 2026-09-21
 summary: "Проверенный реестр дефектов и архитектурных рисков текущего среза планировщика с приоритетами, доказательствами и зонами влияния."
 source_tasks: ["TASK_024", "TASK_025"]
 source_pages: ["../../backend/src/planner/application/services.py", "../../backend/src/planner/api/router.py", "../../backend/src/planner/infrastructure/models.py", "../../frontend/app.js", "../../frontend/styles.css", "../../tz/05_kriterii_priemki_i_etapy.md"]

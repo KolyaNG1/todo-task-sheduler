@@ -2,7 +2,7 @@
 doc_type: projects_index
 title: "Проекты и приложения"
 status: active
-updated: 2026-09-19
+updated: 2026-09-21
 ---
 
 # Проекты и приложения

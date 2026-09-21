@@ -132,12 +132,12 @@ class PlannerService:
             statement = statement.where(Direction.is_archived.is_(False))
         return list(self.session.scalars(statement.order_by(Direction.name)))
 
-    def create_direction(self, context: RequestContext, *, name: str, kind: str, color: str, default_priority: int = 3, default_estimate_minutes: int | None = None) -> Direction:
+    def create_direction(self, context: RequestContext, *, name: str, kind: str, color: str, default_priority: int = 3, default_estimate_minutes: int | None = None, default_deadline_at: datetime | None = None) -> Direction:
         if not name.strip() or not kind.strip():
-            raise ValidationError("Название и тип направления не могут быть пустыми")
+            raise ValidationError("Название и тип проекта не могут быть пустыми")
         if default_priority not in PRIORITIES:
             raise ValidationError("Важность должна быть одним из чисел 1, 2, 3, 5, 8, 13, 21")
-        direction = Direction(workspace_id=context.workspace_id, name=name.strip(), kind=kind, color=color, default_priority=default_priority, default_estimate_minutes=default_estimate_minutes)
+        direction = Direction(workspace_id=context.workspace_id, name=name.strip(), kind=kind, color=color, default_priority=default_priority, default_estimate_minutes=default_estimate_minutes, default_deadline_at=ensure_utc(default_deadline_at) if default_deadline_at else None)
         self.session.add(direction)
         self.session.flush()
         self._bump_revisions(context.workspace_id)
@@ -147,20 +147,41 @@ class PlannerService:
     def get_direction(self, context: RequestContext, direction_id: str) -> Direction:
         direction = self.session.get(Direction, direction_id)
         if direction is None or direction.workspace_id != context.workspace_id:
-            raise NotFoundError("Направление не найдено")
+            raise NotFoundError("Проект не найден")
         return direction
+
+    def list_projects(self, context: RequestContext, *, include_archived: bool = False) -> list[Direction]:
+        statement = select(Direction).options(
+            selectinload(Direction.tasks).selectinload(Task.direction),
+            selectinload(Direction.tasks).selectinload(Task.goal),
+            selectinload(Direction.tasks).selectinload(Task.parent),
+            selectinload(Direction.tasks).selectinload(Task.children),
+            selectinload(Direction.tasks).selectinload(Task.blocks),
+            selectinload(Direction.tasks).selectinload(Task.labels).selectinload(TaskLabel.label),
+        ).where(Direction.workspace_id == context.workspace_id)
+        if not include_archived:
+            statement = statement.where(Direction.is_archived.is_(False))
+        return list(self.session.scalars(statement.order_by(Direction.name)))
+
+    def get_project(self, context: RequestContext, project_id: str) -> Direction:
+        project = next((item for item in self.list_projects(context, include_archived=True) if item.id == project_id), None)
+        if project is None:
+            raise NotFoundError("Проект не найден")
+        return project
 
     def update_direction(self, context: RequestContext, direction_id: str, values: dict[str, object]) -> Direction:
         direction = self.get_direction(context, direction_id)
         if "name" in values and not str(values["name"] or "").strip():
-            raise ValidationError("Название направления не может быть пустым")
+            raise ValidationError("Название проекта не может быть пустым")
         if "kind" in values and not str(values["kind"] or "").strip():
-            raise ValidationError("Тип направления не может быть пустым")
+            raise ValidationError("Тип проекта не может быть пустым")
         if "default_priority" in values and int(values["default_priority"] or 0) not in PRIORITIES:
             raise ValidationError("Недопустимое значение важности")
-        for key in ("name", "kind", "color", "default_priority", "default_estimate_minutes"):
+        for key in ("name", "kind", "color", "default_priority", "default_estimate_minutes", "default_deadline_at"):
             if key in values:
                 value = values[key]
+                if key == "default_deadline_at" and value:
+                    value = ensure_utc(value)
                 setattr(direction, key, value.strip() if key in {"name", "kind"} and isinstance(value, str) else value)
         direction.version += 1
         self._bump_revisions(context.workspace_id)
@@ -238,7 +259,7 @@ class PlannerService:
         if len(labels) != len(set(label_ids)):
             raise ValidationError("Один или несколько тегов не найдены")
         if any(label.direction_id and label.direction_id != direction_id for label in labels):
-            raise ValidationError("Тег другого направления нельзя назначить задаче")
+            raise ValidationError("Тег другого проекта нельзя назначить задаче")
         return labels
 
     def create_goal(self, context: RequestContext, *, title: str, direction_id: str | None = None, description: str | None = None, color: str | None = None, deadline_at: datetime | None = None, priority: int = 3) -> Goal:
@@ -426,7 +447,9 @@ class PlannerService:
             raise ValidationError("Вложенный пункт и его родитель должны принадлежать одной цели")
         goal_id = parent.goal_id if parent and parent.goal_id else goal_id
         goal = self.get_goal(context, goal_id) if goal_id else None
-        direction_id = direction_id or (parent.direction_id if parent else None) or (goal.direction_id if goal else None)
+        if parent and direction_id and parent.direction_id and direction_id != parent.direction_id:
+            raise ValidationError("Вложенная задача должна принадлежать проекту родителя")
+        direction_id = (parent.direction_id if parent else None) or direction_id or (goal.direction_id if goal else None)
         direction = self.get_direction(context, direction_id) if direction_id else None
         resolved_priority = priority if priority is not None else (parent.priority if parent else (direction.default_priority if direction else 3))
         resolved_estimate = estimate_minutes if estimate_minutes is not None else (direction.default_estimate_minutes if direction and direction.default_estimate_minutes else 30)
@@ -1252,12 +1275,12 @@ class PlannerService:
         for session in sessions:
             direction_id = session.direction_id or (session.task.direction_id if session.task else None)
             key = direction_id or "none"
-            bucket = by_direction.setdefault(key, {"direction_id": direction_id, "name": directions.get(direction_id, "Без направления"), "actual_seconds": 0, "planned_seconds": 0})
+            bucket = by_direction.setdefault(key, {"direction_id": direction_id, "name": directions.get(direction_id, "Без проекта"), "actual_seconds": 0, "planned_seconds": 0})
             bucket["actual_seconds"] = int(bucket["actual_seconds"]) + sum(segment_seconds(segment) for segment in session.segments)
         for block in blocks:
             direction_id = block.task.direction_id if block.task else None
             key = direction_id or "none"
-            bucket = by_direction.setdefault(key, {"direction_id": direction_id, "name": directions.get(direction_id, "Без направления"), "actual_seconds": 0, "planned_seconds": 0})
+            bucket = by_direction.setdefault(key, {"direction_id": direction_id, "name": directions.get(direction_id, "Без проекта"), "actual_seconds": 0, "planned_seconds": 0})
             bucket["planned_seconds"] = int(bucket["planned_seconds"]) + sum(
                 max(0, int((min(stored_utc(block.end_at), slot.end, end) - max(stored_utc(block.start_at), slot.start, start)).total_seconds()))
                 for slot in availability if stored_utc(block.end_at) > slot.start and stored_utc(block.start_at) < slot.end

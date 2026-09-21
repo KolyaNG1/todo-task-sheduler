@@ -8,7 +8,7 @@ title: "Реализовать серверную часть планировщ�
 slug: "realizovat_servernuyu_chast_planirovschika"
 status: active
 created: 2026-09-09
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_003", "TASK_002"]

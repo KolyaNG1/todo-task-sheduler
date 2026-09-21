@@ -8,7 +8,7 @@ title: "Диагностировать и исправить штатный за
 slug: "diagnostirovat_i_ispravit_shtatnyy_zapusk_planirovschika"
 status: done
 created: 2026-09-14
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_038"]

@@ -134,6 +134,60 @@ def test_short_tasks_are_valid_for_any_whole_minute_duration(tmp_path) -> None:
             assert response.json()["min_block_minutes"] == minutes
 
 
+def test_existing_direction_is_exposed_as_project_with_tree_and_nearest_deadline(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        project = client.post(
+            f"/api/v1/workspaces/{workspace}/directions",
+            json={"name": "Лаба ИТМО", "kind": "Исследования", "color": "#7C3AED", "default_priority": 8, "default_estimate_minutes": 45},
+        ).json()
+        root = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Проверить гипотезу", "direction_id": project["id"], "estimate_minutes": 60},
+        ).json()
+        child = client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Запустить эксперимент", "parent_task_id": root["id"], "deadline_at": "2030-01-02T12:00:00Z"},
+        ).json()
+
+        listed = client.get(f"/api/v1/workspaces/{workspace}/projects").json()
+        card = next(item for item in listed if item["id"] == project["id"])
+        assert card["name"] == "Лаба ИТМО"
+        assert card["task_count"] == 2
+        assert card["nearest_deadline_at"].startswith("2030-01-02")
+
+        detail = client.get(f"/api/v1/workspaces/{workspace}/projects/{project['id']}").json()
+        assert {item["id"] for item in detail["tasks"]} == {root["id"], child["id"]}
+        assert child["project_id"] == project["id"]
+        assert child["project"]["name"] == "Лаба ИТМО"
+        assert child["priority"] == 8
+        assert child["estimate_minutes"] == 45
+
+
+def test_project_deadline_state_distinguishes_urgent_and_overdue_tasks(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        urgent = client.post(f"/api/v1/workspaces/{workspace}/projects", json={"name": "Срочный проект"}).json()
+        future_deadline = datetime.now(UTC) + timedelta(hours=12)
+        client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Сдать завтра", "direction_id": urgent["id"], "deadline_at": future_deadline.isoformat()},
+        )
+        urgent_card = client.get(f"/api/v1/workspaces/{workspace}/projects/{urgent['id']}").json()
+        assert urgent_card["is_urgent"] is True
+        assert urgent_card["is_overdue"] is False
+
+        overdue = client.post(f"/api/v1/workspaces/{workspace}/projects", json={"name": "Просроченный проект"}).json()
+        past_deadline = datetime.now(UTC) - timedelta(hours=1)
+        client.post(
+            f"/api/v1/workspaces/{workspace}/tasks",
+            json={"title": "Сдать вчера", "direction_id": overdue["id"], "deadline_at": past_deadline.isoformat()},
+        )
+        overdue_card = client.get(f"/api/v1/workspaces/{workspace}/projects/{overdue['id']}").json()
+        assert overdue_card["is_urgent"] is False
+        assert overdue_card["is_overdue"] is True
+
+
 def test_manual_block_move_reschedules_task_and_resolves_overdue_notice(tmp_path) -> None:
     """Ручной перенос блока переносит срок задачи и убирает устаревшую тревогу."""
     with _client(tmp_path) as client:

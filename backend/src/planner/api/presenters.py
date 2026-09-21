@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from planner.infrastructure.models import Direction, Goal, PlannerProposal, PlannerRun, ScheduleBlock, Task, WorkSession
 from planner.application.services import stored_utc
@@ -11,7 +11,7 @@ def iso(value: datetime | None) -> str | None:
 
 
 def direction_view(item: Direction) -> dict:
-    return {"id": item.id, "name": item.name, "kind": item.kind, "color": item.color, "default_priority": item.default_priority, "default_estimate_minutes": item.default_estimate_minutes, "is_archived": item.is_archived, "version": item.version}
+    return {"id": item.id, "name": item.name, "kind": item.kind, "color": item.color, "default_priority": item.default_priority, "default_estimate_minutes": item.default_estimate_minutes, "default_deadline_at": iso(item.default_deadline_at), "is_archived": item.is_archived, "version": item.version}
 
 
 def task_progress_map(tasks: list[Task]) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
@@ -87,6 +87,31 @@ def goal_view(item: Goal, *, now: datetime | None = None) -> dict:
     }
 
 
+def project_view(item: Direction, *, now: datetime | None = None, detailed: bool = False) -> dict:
+    """Полное представление проекта поверх совместимой таблицы направлений."""
+    tasks = [task for task in item.tasks if task.deleted_at is None]
+    progress_by_task, total = task_progress_map(tasks)
+    child_parent_ids = {task.parent_task_id for task in tasks if task.parent_task_id}
+    actionable = [task for task in tasks if task.id not in child_parent_ids or task.is_checkpoint]
+    deadlines = [stored_utc(task.deadline_at) for task in actionable if task.status == "ACTIVE" and task.deadline_at]
+    nearest = min(deadlines) if deadlines else (stored_utc(item.default_deadline_at) if item.default_deadline_at else None)
+    result = {
+        **direction_view(item),
+        "task_count": len(tasks),
+        "actionable_task_count": len(actionable),
+        "completed_actionable_task_count": sum(1 for task in actionable if task.status == "COMPLETED"),
+        "total_estimate_minutes": total["total_weight"],
+        "completed_estimate_minutes": total["completed_weight"],
+        "progress_percent": round(total["completed_weight"] * 100 / total["total_weight"]) if total["total_weight"] else 0,
+        "nearest_deadline_at": nearest.isoformat() if nearest else None,
+        "is_overdue": bool(now and nearest and nearest < now),
+        "is_urgent": bool(now and nearest and now <= nearest <= now + timedelta(hours=24)),
+    }
+    if detailed:
+        result["tasks"] = [task_view(task, now=now, progress=progress_by_task.get(task.id)) for task in tasks]
+    return result
+
+
 def task_view(item: Task, *, now: datetime | None = None, progress: dict[str, int] | None = None) -> dict:
     # Планирование считает все подтверждённые блоки, включая уже прошедшие.
     # Иначе старая размещённая задача внезапно снова становилась «свободной» и
@@ -114,6 +139,8 @@ def task_view(item: Task, *, now: datetime | None = None, progress: dict[str, in
         "planning_status": plan_status,
         "is_overdue": overdue,
         "direction": direction_view(item.direction) if item.direction else None,
+        "project": direction_view(item.direction) if item.direction else None,
+        "project_id": item.direction_id,
         "goal_id": item.goal_id,
         "goal_title": item.goal.title if item.goal else None,
         "goal_position": item.goal_position,

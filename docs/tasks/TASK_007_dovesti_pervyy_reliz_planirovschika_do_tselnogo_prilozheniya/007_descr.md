@@ -8,7 +8,7 @@ title: "Довести первый релиз планировщика до ц�
 slug: "dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya"
 status: active
 created: 2026-09-09
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_005", "TASK_006"]

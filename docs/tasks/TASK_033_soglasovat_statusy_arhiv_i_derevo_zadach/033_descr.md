@@ -8,7 +8,7 @@ title: "Согласовать статусы, архив и дерево зад
 slug: "soglasovat_statusy_arhiv_i_derevo_zadach"
 status: done
 created: 2026-09-12
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_032"]

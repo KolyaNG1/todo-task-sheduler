@@ -8,7 +8,7 @@ title: "Устранить самопроизвольную остановку A
 slug: "ustranit_samoproizvolnuyu_ostanovku_api_posle_zapuska"
 status: done
 created: 2026-09-14
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_042"]

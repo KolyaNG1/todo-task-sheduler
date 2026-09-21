@@ -8,7 +8,7 @@ title: "Исправить управление блоками и свободн
 slug: "ispravit_upravlenie_blokami_i_svobodnym_vremenem"
 status: done
 created: 2026-09-09
-updated: 2026-09-19
+updated: 2026-09-21
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_008"]
