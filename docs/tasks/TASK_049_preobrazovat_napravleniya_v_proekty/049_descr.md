@@ -8,7 +8,7 @@ title: "Преобразовать направления в проекты"
 slug: "preobrazovat_napravleniya_v_proekty"
 status: done
 created: 2026-09-21
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_046"]
@@ -133,6 +133,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Родительская задача:** [TASK_025 — Переработать планировщик и закрыть аудит](../TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
 - **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
+- **Связанная задача:** [TASK_054 — Добавить группировку проектов и недельный дашборд вместимости](../TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_descr.md)
 - **Связанное решение:** [DEC_005 — Дерево задач и единый источник фактического времени](../../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Созданное или обновлённое знание:** [Архитектура и предметная модель планировщика недели](../../knowledge/planirovschik_nedeli.md)
 <!-- AUTO:PAGE_LINKS:END -->

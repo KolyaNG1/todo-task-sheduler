@@ -8,7 +8,7 @@ title: "Спроектировать страницы и окна интерфе
 slug: "sproektirovat_stranitsy_i_okna_interfeysa"
 status: done
 created: 2026-09-08
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_001"]

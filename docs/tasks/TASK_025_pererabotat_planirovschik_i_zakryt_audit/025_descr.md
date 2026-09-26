@@ -8,7 +8,7 @@ title: "Переработать планировщик и закрыть ауд
 slug: "pererabotat_planirovschik_i_zakryt_audit"
 status: active
 created: 2026-09-10
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_024", "TASK_007"]
@@ -129,6 +129,7 @@ root_record: null
 - **Связанная задача:** [TASK_024 — Провести полный аудит кода и масштабируемости планировщика](../TASK_024_provesti_polnyy_audit_koda_i_masshtabiruemosti_planirovschik/024_descr.md)
 - **Связанная задача:** [TASK_026 — Опубликовать планировщик в удалённом репозитории](../TASK_026_opublikovat_planirovschik_v_repozitorii_github/026_descr.md)
 - **Связанная задача:** [TASK_045 — Подготовить описание базы данных для учебной заявки](../TASK_045_podgotovit_opisanie_bazy_dannyh_dlya_uchebnoy_zayavki/045_descr.md)
+- **Связанная задача:** [TASK_051 — Оценить будущую синхронизацию с Google Календарём](../TASK_051_otsenit_buduschuyu_sinhronizatsiyu_s_google_kalendarem/051_descr.md)
 - **Созданное или обновлённое знание:** [Аудит качества и масштабируемости планировщика](../../knowledge/audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Созданное или обновлённое знание:** [Карта кода планировщика](../../knowledge/karta_koda_planirovschika.md)
 <!-- AUTO:PAGE_LINKS:END -->

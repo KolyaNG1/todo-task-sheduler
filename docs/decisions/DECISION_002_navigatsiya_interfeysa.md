@@ -4,7 +4,7 @@ decision_id: "DEC_002"
 title: "Навигация и поверхности интерфейса"
 status: accepted
 created: 2026-09-08
-updated: 2026-09-22
+updated: 2026-09-26
 summary: "Сосредоточить ежедневную работу на недельном плане, а справочники, итоги и администрирование разделить на четыре дополнительных раздела."
 related_tasks: ["TASK_002"]
 related_knowledge: ["../knowledge/informatsionnaya_arkhitektura_interfeysa.md"]

@@ -8,7 +8,7 @@ title: "Исправить перекрытие панели выбора зад
 slug: "ispravit_perekrytie_paneli_vybora_zadach"
 status: done
 created: 2026-09-09
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_011"]

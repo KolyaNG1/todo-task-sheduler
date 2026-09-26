@@ -8,7 +8,7 @@ title: "Переработать интерфейс целей и иерархи
 slug: "pererabotat_interfeys_tseley_i_ierarhii_zadach"
 status: done
 created: 2026-09-11
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_027"]

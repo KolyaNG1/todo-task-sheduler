@@ -23,6 +23,34 @@ class DirectionUpdate(BaseModel):
     default_deadline_at: datetime | None = None
 
 
+class ProjectGroupCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    color: str = Field(default="#356AE6", pattern=r"^#[0-9A-Fa-f]{6}$")
+    project_ids: list[str] = Field(default_factory=list)
+
+
+class ProjectGroupUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    is_collapsed: bool | None = None
+
+
+class ProjectLayoutGroup(BaseModel):
+    id: str
+    project_ids: list[str] = Field(default_factory=list)
+
+
+class ProjectLayoutRootItem(BaseModel):
+    kind: str = Field(pattern=r"^(project|group)$")
+    id: str
+
+
+class ProjectLayoutReplace(BaseModel):
+    ungrouped_project_ids: list[str] = Field(default_factory=list)
+    groups: list[ProjectLayoutGroup] = Field(default_factory=list)
+    root_items: list[ProjectLayoutRootItem] | None = None
+
+
 # В базе сохраняется историческое имя Direction, а новый публичный интерфейс
 # использует термин «проект». Общая схема оставляет старые адреса совместимыми.
 ProjectCreate = DirectionCreate
@@ -142,6 +170,13 @@ class FixedEventUpdate(BaseModel):
     local_date: date | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     is_active: bool | None = None
+
+
+class FixedEventOccurrenceUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=180)
+    start_minute: int = Field(ge=0, le=1439)
+    end_minute: int = Field(ge=1, le=1440)
+    color: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
 
 
 class ScheduleBlockCreate(BaseModel):

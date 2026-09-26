@@ -8,7 +8,7 @@ title: "Исправить подключение браузера к локал
 slug: "ispravit_podklyuchenie_brauzera_k_lokalnomu_api"
 status: done
 created: 2026-09-14
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_043"]

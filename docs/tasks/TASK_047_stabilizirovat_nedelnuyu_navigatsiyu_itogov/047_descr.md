@@ -8,7 +8,7 @@ title: "Стабилизировать недельную навигацию и�
 slug: "stabilizirovat_nedelnuyu_navigatsiyu_itogov"
 status: done
 created: 2026-09-19
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_046"]
@@ -102,6 +102,7 @@ root_record: null
 - **Дочерняя задача:** [TASK_048 — Расширить и синхронизировать шкалу итогов](../TASK_048_rasshirit_i_sinhronizirovat_shkalu_itogov/048_descr.md)
 - **Родительская задача:** [TASK_025 — Переработать планировщик и закрыть аудит](../TASK_025_pererabotat_planirovschik_i_zakryt_audit/025_descr.md)
 - **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
+- **Связанная задача:** [TASK_053 — Добавить 14-дневную динамику и средние показатели в Итоги](../TASK_053_dobavit_14_dnevnuyu_dinamiku_i_srednie_pokazateli_v_itogi/053_descr.md)
 - **Созданное или обновлённое знание:** [Информационная архитектура интерфейса планировщика](../../knowledge/informatsionnaya_arkhitektura_interfeysa.md)
 <!-- AUTO:PAGE_LINKS:END -->
 

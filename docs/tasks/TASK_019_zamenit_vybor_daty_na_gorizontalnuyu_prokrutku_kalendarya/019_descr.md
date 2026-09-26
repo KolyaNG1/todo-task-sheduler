@@ -8,7 +8,7 @@ title: "Заменить выбор даты на горизонтальную �
 slug: "zamenit_vybor_daty_na_gorizontalnuyu_prokrutku_kalendarya"
 status: done
 created: 2026-09-10
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_018"]

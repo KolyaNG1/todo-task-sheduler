@@ -68,6 +68,43 @@ def test_weekly_flow_from_direction_to_plan_and_timer(tmp_path) -> None:
     assert (tmp_path / "artifacts" / "manifest.json").exists()
 
 
+def test_repeating_event_changes_only_selected_date_unless_series_is_chosen(tmp_path) -> None:
+    settings = Settings(project_root=tmp_path, artifacts_dir=tmp_path / "artifacts")
+    with TestClient(create_app(settings)) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        base = f"/api/v1/workspaces/{workspace}"
+        client.put(f"{base}/availability/default", json={"slots": [{"weekday": 0, "start_minute": 540, "end_minute": 720}]})
+        created = client.post(f"{base}/fixed-events", json={"title": "Лекция", "weekday": 0, "start_minute": 600, "end_minute": 660}).json()
+        event_id = created["id"]
+        one_date = f"{base}/fixed-events/{event_id}/occurrences/2030-01-07"
+
+        assert client.patch(one_date, json={"title": "Сдвинутая лекция", "start_minute": 630, "end_minute": 720, "color": "#445566"}).status_code == 200
+        assert client.patch(f"{base}/fixed-events/{event_id}/occurrences/2030-01-08", json={"title": "Неверный день", "start_minute": 600, "end_minute": 660, "color": "#445566"}).status_code == 422
+        first = client.get(f"{base}/week", params={"week_start": "2030-01-07"}).json()["days"][0]
+        second = client.get(f"{base}/week", params={"week_start": "2030-01-14"}).json()["days"][0]
+        assert [(item["title"], item["start_minute"], item["end_minute"]) for item in first["fixed_events"]] == [("Сдвинутая лекция", 630, 720)]
+        assert first["free_minutes"] == 90
+        assert [(item["title"], item["start_minute"], item["end_minute"]) for item in second["fixed_events"]] == [("Лекция", 600, 660)]
+        assert second["free_minutes"] == 120
+
+        assert client.patch(f"{base}/fixed-events/{event_id}", json={"title": "Новая серия", "start_minute": 615, "end_minute": 675}).status_code == 200
+        first = client.get(f"{base}/week", params={"week_start": "2030-01-07"}).json()["days"][0]
+        second = client.get(f"{base}/week", params={"week_start": "2030-01-14"}).json()["days"][0]
+        assert first["fixed_events"][0]["title"] == "Новая серия"
+        assert first["fixed_events"][0]["start_minute"] == 615
+        assert second["fixed_events"][0]["title"] == "Новая серия"
+
+    with TestClient(create_app(settings)) as client:
+        assert client.delete(one_date).status_code == 204
+        first = client.get(f"{base}/week", params={"week_start": "2030-01-07"}).json()["days"][0]
+        second = client.get(f"{base}/week", params={"week_start": "2030-01-14"}).json()["days"][0]
+        assert first["fixed_events"] == []
+        assert first["free_minutes"] == 180
+        assert second["fixed_events"][0]["title"] == "Новая серия"
+        assert client.delete(f"{base}/fixed-events/{event_id}").status_code == 204
+        assert client.get(f"{base}/week", params={"week_start": "2030-01-14"}).json()["days"][0]["fixed_events"] == []
+
+
 def test_task_lifecycle_block_edit_and_daily_report(tmp_path) -> None:
     app = create_app(Settings(project_root=tmp_path, artifacts_dir=tmp_path / "artifacts"))
     with TestClient(app) as client:

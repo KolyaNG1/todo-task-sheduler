@@ -8,7 +8,7 @@ title: "Переработать фильтры задач, события и ф
 slug: "pererabotat_filtry_zadach_sobytiya_i_formu_sozdaniya"
 status: done
 created: 2026-09-12
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_031"]
@@ -95,6 +95,7 @@ root_record: null
 <!-- AUTO:PAGE_LINKS:START -->
 - **Связанная задача:** [TASK_031 — Исправить прокрутку и жизненный цикл задач в интерфейсе](../TASK_031_ispravit_prokrutku_i_zhiznennyy_tsikl_zadach_v_interfeyse/031_descr.md)
 - **Связанная задача:** [TASK_033 — Согласовать статусы, архив и дерево задач](../TASK_033_soglasovat_statusy_arhiv_i_derevo_zadach/033_descr.md)
+- **Связанная задача:** [TASK_055 — Разделить изменение повторяющегося события на день и серию](../TASK_055_razdelit_izmenenie_povtoryayuschegosya_sobytiya_na_den_i_ser/055_descr.md)
 - **Созданное или обновлённое знание:** [Информационная архитектура интерфейса планировщика](../../knowledge/informatsionnaya_arkhitektura_interfeysa.md)
 <!-- AUTO:PAGE_LINKS:END -->
 

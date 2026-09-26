@@ -18,11 +18,13 @@ from planner.infrastructure.models import (
     DailyMetricSnapshot,
     Direction,
     Goal,
+    FixedEventOccurrence,
     FixedEventRule,
     Label,
     Notification,
     PlannerProposal,
     PlannerRun,
+    ProjectGroup,
     ScheduleBlock,
     Task,
     TaskLabel,
@@ -138,6 +140,10 @@ class PlannerService:
         if default_priority not in PRIORITIES:
             raise ValidationError("Важность должна быть одним из чисел 1, 2, 3, 5, 8, 13, 21")
         direction = Direction(workspace_id=context.workspace_id, name=name.strip(), kind=kind, color=color, default_priority=default_priority, default_estimate_minutes=default_estimate_minutes, default_deadline_at=ensure_utc(default_deadline_at) if default_deadline_at else None)
+        direction.position = max(
+            int(self.session.scalar(select(func.coalesce(func.max(Direction.position), -1)).where(Direction.workspace_id == context.workspace_id, Direction.group_id.is_(None)))),
+            int(self.session.scalar(select(func.coalesce(func.max(ProjectGroup.position), -1)).where(ProjectGroup.workspace_id == context.workspace_id))),
+        ) + 1
         self.session.add(direction)
         self.session.flush()
         self._bump_revisions(context.workspace_id)
@@ -161,13 +167,124 @@ class PlannerService:
         ).where(Direction.workspace_id == context.workspace_id)
         if not include_archived:
             statement = statement.where(Direction.is_archived.is_(False))
-        return list(self.session.scalars(statement.order_by(Direction.name)))
+        return list(self.session.scalars(statement.order_by(Direction.position, Direction.name)))
 
     def get_project(self, context: RequestContext, project_id: str) -> Direction:
         project = next((item for item in self.list_projects(context, include_archived=True) if item.id == project_id), None)
         if project is None:
             raise NotFoundError("Проект не найден")
         return project
+
+    def list_project_groups(self, context: RequestContext) -> list[ProjectGroup]:
+        return list(self.session.scalars(
+            select(ProjectGroup)
+            .options(selectinload(ProjectGroup.projects))
+            .where(ProjectGroup.workspace_id == context.workspace_id)
+            .order_by(ProjectGroup.position, ProjectGroup.name)
+        ))
+
+    def get_project_group(self, context: RequestContext, group_id: str) -> ProjectGroup:
+        group = self.session.scalar(
+            select(ProjectGroup)
+            .options(selectinload(ProjectGroup.projects))
+            .where(ProjectGroup.id == group_id, ProjectGroup.workspace_id == context.workspace_id)
+        )
+        if group is None:
+            raise NotFoundError("Группа проектов не найдена")
+        return group
+
+    def create_project_group(self, context: RequestContext, *, name: str, color: str, project_ids: list[str]) -> ProjectGroup:
+        clean_name = name.strip()
+        if not clean_name:
+            raise ValidationError("Название группы не может быть пустым")
+        duplicate = self.session.scalar(select(ProjectGroup.id).where(ProjectGroup.workspace_id == context.workspace_id, ProjectGroup.name == clean_name))
+        if duplicate:
+            raise ConflictError("Группа проектов с таким названием уже существует")
+        if len(project_ids) != len(set(project_ids)):
+            raise ValidationError("Проект не может повторяться в группе")
+        projects = [self.get_project(context, project_id) for project_id in project_ids]
+        if any(project.is_archived for project in projects):
+            raise ValidationError("Архивный проект нельзя добавить в группу")
+        position = max(
+            int(self.session.scalar(select(func.coalesce(func.max(Direction.position), -1)).where(Direction.workspace_id == context.workspace_id, Direction.group_id.is_(None)))),
+            int(self.session.scalar(select(func.coalesce(func.max(ProjectGroup.position), -1)).where(ProjectGroup.workspace_id == context.workspace_id))),
+        ) + 1
+        group = ProjectGroup(workspace_id=context.workspace_id, name=clean_name, color=color, position=position)
+        self.session.add(group)
+        self.session.flush()
+        for index, project in enumerate(projects):
+            project.group_id = group.id
+            project.position = index
+            project.version += 1
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="created", entity_type="project_group", entity_id=group.id, details={"project_ids": project_ids})
+        return group
+
+    def update_project_group(self, context: RequestContext, group_id: str, values: dict[str, object]) -> ProjectGroup:
+        group = self.get_project_group(context, group_id)
+        if "name" in values:
+            clean_name = str(values["name"] or "").strip()
+            if not clean_name:
+                raise ValidationError("Название группы не может быть пустым")
+            duplicate = self.session.scalar(select(ProjectGroup.id).where(ProjectGroup.workspace_id == context.workspace_id, ProjectGroup.name == clean_name, ProjectGroup.id != group.id))
+            if duplicate:
+                raise ConflictError("Группа проектов с таким названием уже существует")
+            group.name = clean_name
+        if "color" in values and values["color"]:
+            group.color = str(values["color"])
+        if "is_collapsed" in values:
+            group.is_collapsed = bool(values["is_collapsed"])
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="updated", entity_type="project_group", entity_id=group.id)
+        return group
+
+    def replace_project_layout(self, context: RequestContext, *, ungrouped_project_ids: list[str], groups: list[dict[str, object]], root_items: list[dict[str, str]] | None = None) -> None:
+        active_projects = self.list_projects(context)
+        active_groups = self.list_project_groups(context)
+        submitted_group_ids = [str(item["id"]) for item in groups]
+        submitted_project_ids = list(ungrouped_project_ids) + [str(project_id) for item in groups for project_id in item.get("project_ids", [])]
+        if len(submitted_group_ids) != len(set(submitted_group_ids)) or set(submitted_group_ids) != {group.id for group in active_groups}:
+            raise ValidationError("Раскладка должна содержать каждую группу ровно один раз")
+        if len(submitted_project_ids) != len(set(submitted_project_ids)) or set(submitted_project_ids) != {project.id for project in active_projects}:
+            raise ValidationError("Раскладка должна содержать каждый активный проект ровно один раз")
+        expected_root = {("project", project_id) for project_id in ungrouped_project_ids} | {("group", group_id) for group_id in submitted_group_ids}
+        root_order = [(str(item["kind"]), str(item["id"])) for item in root_items] if root_items is not None else [*(('project', project_id) for project_id in ungrouped_project_ids), *(('group', group_id) for group_id in submitted_group_ids)]
+        if len(root_order) != len(expected_root) or set(root_order) != expected_root:
+            raise ValidationError("Раскладка должна содержать каждую корневую плитку ровно один раз")
+        projects_by_id = {project.id: project for project in active_projects}
+        groups_by_id = {group.id: group for group in active_groups}
+        for project_id in ungrouped_project_ids:
+            project = projects_by_id[project_id]
+            project.group_id = None
+            project.version += 1
+        for item in groups:
+            group_id = str(item["id"])
+            for project_position, project_id in enumerate(item.get("project_ids", [])):
+                project = projects_by_id[str(project_id)]
+                project.group_id = group_id
+                project.position = project_position
+                project.version += 1
+        for position, (kind, item_id) in enumerate(root_order):
+            if kind == "group":
+                groups_by_id[item_id].position = position
+            else:
+                projects_by_id[item_id].position = position
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="reordered", entity_type="project_layout", entity_id=context.workspace_id)
+
+    def delete_project_group(self, context: RequestContext, group_id: str) -> None:
+        group = self.get_project_group(context, group_id)
+        root_position = max(
+            int(self.session.scalar(select(func.coalesce(func.max(Direction.position), -1)).where(Direction.workspace_id == context.workspace_id, Direction.group_id.is_(None)))),
+            int(self.session.scalar(select(func.coalesce(func.max(ProjectGroup.position), -1)).where(ProjectGroup.workspace_id == context.workspace_id))),
+        ) + 1
+        for offset, project in enumerate(sorted(group.projects, key=lambda item: (item.position, item.name))):
+            project.group_id = None
+            project.position = root_position + offset
+            project.version += 1
+        self.session.delete(group)
+        self._bump_revisions(context.workspace_id)
+        self._record_event(context, action="deleted", entity_type="project_group", entity_id=group_id)
 
     def update_direction(self, context: RequestContext, direction_id: str, values: dict[str, object]) -> Direction:
         direction = self.get_direction(context, direction_id)
@@ -770,6 +887,10 @@ class PlannerService:
             raise ValidationError("Укажите название и дату либо день недели")
         self._validate_local_interval(event.weekday or 0, event.start_minute, event.end_minute, validate_weekday=event.weekday is not None)
         event.version += 1
+        # Правка всей серии заменяет отдельные изменения видимых повторов.
+        # Отменённые даты сохраняют явный выбор пользователя.
+        for occurrence in self.session.scalars(select(FixedEventOccurrence).where(FixedEventOccurrence.rule_id == event.id, FixedEventOccurrence.is_cancelled.is_(False))):
+            self.session.delete(occurrence)
         self._bump_revisions(context.workspace_id)
         self._recalculate_block_conflicts(context)
         self._record_event(context, action="updated", entity_type="fixed_event", entity_id=event.id)
@@ -784,6 +905,44 @@ class PlannerService:
         self._bump_revisions(context.workspace_id)
         self._recalculate_block_conflicts(context)
         self._record_event(context, action="archived", entity_type="fixed_event", entity_id=event.id)
+
+    def _fixed_event_on_date(self, context: RequestContext, event_id: str, local_date: date) -> FixedEventRule:
+        event = self.session.get(FixedEventRule, event_id)
+        if event is None or event.workspace_id != context.workspace_id or not event.is_active:
+            raise NotFoundError("Неподвижное событие не найдено")
+        if event.weekday is None or event.local_date is not None:
+            raise ValidationError("Отдельное повторение есть только у еженедельного события")
+        if local_date.weekday() != event.weekday or event.starts_on and local_date < event.starts_on or event.ends_on and local_date > event.ends_on:
+            raise ValidationError("На выбранную дату это событие не повторяется")
+        return event
+
+    def update_fixed_event_occurrence(self, context: RequestContext, event_id: str, local_date: date, *, title: str, start_minute: int, end_minute: int, color: str) -> FixedEventOccurrence:
+        event = self._fixed_event_on_date(context, event_id, local_date)
+        if not title.strip():
+            raise ValidationError("Укажите название события")
+        self._validate_local_interval(event.weekday, start_minute, end_minute, validate_weekday=True)
+        occurrence = self.session.scalar(select(FixedEventOccurrence).where(FixedEventOccurrence.rule_id == event.id, FixedEventOccurrence.local_date == local_date))
+        if occurrence is None:
+            occurrence = FixedEventOccurrence(rule_id=event.id, local_date=local_date)
+            self.session.add(occurrence)
+        occurrence.is_cancelled = False
+        occurrence.title, occurrence.start_minute, occurrence.end_minute, occurrence.color = title.strip(), start_minute, end_minute, color
+        self.session.flush()
+        self._bump_revisions(context.workspace_id)
+        self._recalculate_block_conflicts(context)
+        self._record_event(context, action="updated_occurrence", entity_type="fixed_event", entity_id=event.id, details={"local_date": local_date.isoformat()})
+        return occurrence
+
+    def cancel_fixed_event_occurrence(self, context: RequestContext, event_id: str, local_date: date) -> None:
+        event = self._fixed_event_on_date(context, event_id, local_date)
+        occurrence = self.session.scalar(select(FixedEventOccurrence).where(FixedEventOccurrence.rule_id == event.id, FixedEventOccurrence.local_date == local_date))
+        if occurrence is None:
+            occurrence = FixedEventOccurrence(rule_id=event.id, local_date=local_date)
+            self.session.add(occurrence)
+        occurrence.is_cancelled = True
+        self._bump_revisions(context.workspace_id)
+        self._recalculate_block_conflicts(context)
+        self._record_event(context, action="cancelled_occurrence", entity_type="fixed_event", entity_id=event.id, details={"local_date": local_date.isoformat()})
 
     def restore_fixed_event(self, context: RequestContext, event_id: str) -> FixedEventRule:
         event = self.session.get(FixedEventRule, event_id)
@@ -846,11 +1005,19 @@ class PlannerService:
     def fixed_events_for_date(self, context: RequestContext, local_date: date) -> list[dict]:
         workspace = self.get_workspace(context.workspace_id)
         events = self.session.scalars(select(FixedEventRule).where(FixedEventRule.workspace_id == context.workspace_id, FixedEventRule.is_active.is_(True), ((FixedEventRule.local_date == local_date) | ((FixedEventRule.local_date.is_(None)) & (FixedEventRule.weekday == local_date.weekday()))))).all()
+        exceptions = {item.rule_id: item for item in self.session.scalars(select(FixedEventOccurrence).where(FixedEventOccurrence.local_date == local_date, FixedEventOccurrence.rule_id.in_([event.id for event in events])))} if events else {}
         result = []
         for event in events:
             if event.starts_on and local_date < event.starts_on or event.ends_on and local_date > event.ends_on:
                 continue
-            result.append({"id": event.id, "title": event.title, "color": event.color, "weekday": event.weekday, "local_date": event.local_date, "start_at": self._local_to_utc(local_date, event.start_minute, workspace.timezone), "end_at": self._local_to_utc(local_date, event.end_minute, workspace.timezone)})
+            exception = exceptions.get(event.id)
+            if exception and exception.is_cancelled:
+                continue
+            title = exception.title if exception and exception.title is not None else event.title
+            color = exception.color if exception and exception.color is not None else event.color
+            start = exception.start_minute if exception and exception.start_minute is not None else event.start_minute
+            end = exception.end_minute if exception and exception.end_minute is not None else event.end_minute
+            result.append({"id": event.id, "title": title, "color": color, "weekday": event.weekday, "local_date": event.local_date, "start_at": self._local_to_utc(local_date, start, workspace.timezone), "end_at": self._local_to_utc(local_date, end, workspace.timezone), "start_minute": start, "end_minute": end, "is_exception": exception is not None})
         return result
 
     def _remaining_task_minutes(self, context: RequestContext, task: Task, *, exclude_block_id: str | None = None) -> int:
@@ -1017,7 +1184,7 @@ class PlannerService:
         )
         blocks = list(self.session.scalars(block_statement))
         deadline_tasks = list(self.session.scalars(
-            select(Task).where(
+            select(Task).options(selectinload(Task.direction)).where(
                 Task.workspace_id == context.workspace_id,
                 Task.status == "ACTIVE",
                 Task.deleted_at.is_(None),
@@ -1047,6 +1214,8 @@ class PlannerService:
                 "estimate_minutes": task.estimate_minutes,
                 "planned_minutes": planned_minutes,
                 "remaining_minutes": max(0, task.estimate_minutes - planned_minutes),
+                "project_name": task.direction.name if task.direction else None,
+                "project_color": task.direction.color if task.direction else task.color,
             })
         days: list[dict] = []
         workload_deadlines = [item for offset in range(min(7, calendar_days)) for item in deadlines_by_date.get(week_start + timedelta(days=offset), [])]

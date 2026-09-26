@@ -8,7 +8,7 @@ title: "Исправить календарный ползунок и компо
 slug: "ispravit_kalendarnyy_polzunok_i_komponovku_indikatora_dnya"
 status: done
 created: 2026-09-10
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_017"]

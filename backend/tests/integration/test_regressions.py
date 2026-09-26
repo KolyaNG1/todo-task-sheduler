@@ -296,6 +296,54 @@ def test_project_deadline_state_distinguishes_urgent_and_overdue_tasks(tmp_path)
         assert overdue_card["is_overdue"] is True
 
 
+def test_project_groups_and_card_layout_are_persisted(tmp_path) -> None:
+    with _client(tmp_path) as client:
+        workspace = client.get("/api/v1/bootstrap").json()["workspace"]["id"]
+        first = client.post(f"/api/v1/workspaces/{workspace}/projects", json={"name": "Первый"}).json()
+        second = client.post(f"/api/v1/workspaces/{workspace}/projects", json={"name": "Второй"}).json()
+        third = client.post(f"/api/v1/workspaces/{workspace}/projects", json={"name": "Третий"}).json()
+
+        group = client.post(
+            f"/api/v1/workspaces/{workspace}/project-groups",
+            json={"name": "Учёба", "color": "#7C3AED", "project_ids": [second["id"], first["id"]]},
+        ).json()
+        assert group["project_count"] == 2
+
+        layout = {
+            "ungrouped_project_ids": [third["id"], first["id"]],
+            "groups": [{"id": group["id"], "project_ids": [second["id"]]}],
+            "root_items": [
+                {"kind": "group", "id": group["id"]},
+                {"kind": "project", "id": third["id"]},
+                {"kind": "project", "id": first["id"]},
+            ],
+        }
+        assert client.put(f"/api/v1/workspaces/{workspace}/project-layout", json=layout).status_code == 204
+        assert client.put(f"/api/v1/workspaces/{workspace}/project-layout", json={**layout, "root_items": layout["root_items"][:-1]}).status_code == 422
+
+        projects = client.get(f"/api/v1/workspaces/{workspace}/projects").json()
+        by_id = {project["id"]: project for project in projects}
+        assert by_id[third["id"]]["group_id"] is None
+        assert by_id[third["id"]]["position"] == 1
+        assert by_id[first["id"]]["group_id"] is None
+        assert by_id[first["id"]]["position"] == 2
+        assert by_id[second["id"]]["group_id"] == group["id"]
+        assert by_id[second["id"]]["position"] == 0
+        assert client.get(f"/api/v1/workspaces/{workspace}/project-groups").json()[0]["position"] == 0
+
+        updated = client.patch(
+            f"/api/v1/workspaces/{workspace}/project-groups/{group['id']}",
+            json={"name": "Лаборатории", "is_collapsed": True},
+        ).json()
+        assert updated["name"] == "Лаборатории"
+        assert updated["is_collapsed"] is True
+
+        assert client.delete(f"/api/v1/workspaces/{workspace}/project-groups/{group['id']}").status_code == 204
+        assert client.get(f"/api/v1/workspaces/{workspace}/project-groups").json() == []
+        dissolved = client.get(f"/api/v1/workspaces/{workspace}/projects").json()
+        assert next(project for project in dissolved if project["id"] == second["id"])["group_id"] is None
+
+
 def test_manual_block_move_reschedules_task_and_resolves_overdue_notice(tmp_path) -> None:
     """Ручной перенос блока переносит срок задачи и убирает устаревшую тревогу."""
     with _client(tmp_path) as client:

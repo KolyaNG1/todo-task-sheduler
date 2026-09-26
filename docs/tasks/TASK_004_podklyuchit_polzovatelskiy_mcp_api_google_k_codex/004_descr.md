@@ -8,7 +8,7 @@ title: "Подключить пользовательский MCP API Google к 
 slug: "podklyuchit_polzovatelskiy_mcp_api_google_k_codex"
 status: active
 created: 2026-09-08
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: []
@@ -86,6 +86,7 @@ Google к Codex, и дать безопасную схему настройки 
 ## Связи
 
 <!-- AUTO:PAGE_LINKS:START -->
+- **Связанная задача:** [TASK_051 — Оценить будущую синхронизацию с Google Календарём](../TASK_051_otsenit_buduschuyu_sinhronizatsiyu_s_google_kalendarem/051_descr.md)
 - **Связанный источник:** [SRC_001 — Официальные материалы OpenAI о пользовательских MCP-приложениях](../../sources/SRC_001_openai_mcp_apps.md)
 - **Созданное или обновлённое знание:** [Подключение пользовательского MCP-сервера к Codex](../../knowledge/podklyuchenie-polzovatelskogo-mcp-k-codex.md)
 <!-- AUTO:PAGE_LINKS:END -->

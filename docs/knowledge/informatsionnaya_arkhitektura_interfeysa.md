@@ -2,9 +2,9 @@
 doc_type: knowledge
 title: "Информационная архитектура интерфейса планировщика"
 status: active
-updated: 2026-09-22
+updated: 2026-09-26
 summary: "Пять разделов и контекстные панели покрывают ежедневные и административные сценарии планировщика; все основные разделы имеют рабочий локальный срез."
-source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039", "TASK_047", "TASK_048"]
+source_tasks: ["TASK_002", "TASK_006", "TASK_007", "TASK_008", "TASK_009", "TASK_012", "TASK_013", "TASK_028", "TASK_029", "TASK_030", "TASK_031", "TASK_032", "TASK_033", "TASK_034", "TASK_035", "TASK_036", "TASK_039", "TASK_047", "TASK_048", "TASK_054", "TASK_055", "TASK_056"]
 source_pages: ["../../DESIGN.md", "../../frontend/index.html", "../../frontend/app.js"]
 related_knowledge: ["planirovschik_nedeli.md"]
 ---
@@ -150,6 +150,13 @@ related_knowledge: ["planirovschik_nedeli.md"]
 - **Подтверждено:** сравнительная шкала дня в «Итогах» всегда охватывает
   06:00–24:00, при открытии устанавливается на 09:00, а ось, факт и план
   прокручиваются в одном общем контейнере.
+- **Подтверждено:** раздел «Проекты» является упорядочиваемой доской. Карточки
+  выделяются, перетаскиваются по адаптивной сетке и могут быть собраны в
+  именованную цветную группу; группа сворачивается и расформировывается без
+  удаления проектов.
+- **Подтверждено:** на главной странице «Расписание» и «Обзор недели» образуют
+  явный переключатель. Обзор заменяет календарную сетку, но сохраняет шапку
+  выбранной недели и прямой переход к изменению рабочего времени.
 
 Решение о навигации оформлено в
 [DEC_002](../decisions/DECISION_002_navigatsiya_interfeysa.md).
@@ -176,11 +183,20 @@ related_knowledge: ["planirovschik_nedeli.md"]
 
 ## Источники и происхождение
 
+- **Подтверждено 2026-09-26:** на странице проектов отдельные карточки и
+  группы-папки образуют общую сетку ограниченных по ширине плиток. Группу можно
+  раскрыть и переставить среди проектов; вложенные карточки не занимают всю
+  ширину страницы. Основание — [TASK_056](../tasks/TASK_056_sdelat_gruppy_proektov_kompaktnymi_peretaskivaemymi_plitkami/056_concl.md).
+- **Подтверждено 2026-09-26:** в плане изменение и удаление еженедельного
+  события по умолчанию касаются выбранного дня. Применение ко всей серии
+  требует отдельной галочки. Основание — [TASK_055](../tasks/TASK_055_razdelit_izmenenie_povtoryayuschegosya_sobytiya_na_den_i_ser/055_concl.md).
+
 - [DESIGN.md](../../DESIGN.md)
 - [TASK_002](../tasks/TASK_002_sproektirovat_stranitsy_i_okna_interfeysa/002_descr.md)
 - [TASK_006](../tasks/TASK_006_realizovat_frontend_i_vypolnit_pervyy_zapusk/006_descr.md)
 - [TASK_007](../tasks/TASK_007_dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya/007_descr.md)
 - [TASK_028](../tasks/TASK_028_pererabotat_interfeys_tseley_i_ierarhii_zadach/028_concl.md)
+- [TASK_054 — группировка проектов и обзор недели](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_concl.md)
 - [Бизнес-требования](../../tz/01_biznes_trebovaniya.md)
 - [Критерии приёмки](../../tz/05_kriterii_priemki_i_etapy.md)
 - [Первый срез фронтенда](../../frontend/index.html)
@@ -207,12 +223,16 @@ related_knowledge: ["planirovschik_nedeli.md"]
 - **Задача-основание:** [TASK_039 — Скрывать панель показателей и убирать архивные задачи из плана](../tasks/TASK_039_skryvat_panel_pokazateley_i_ubirat_arhivnye_zadachi_iz_plana/039_descr.md)
 - **Задача-основание:** [TASK_047 — Стабилизировать недельную навигацию итогов](../tasks/TASK_047_stabilizirovat_nedelnuyu_navigatsiyu_itogov/047_descr.md)
 - **Задача-основание:** [TASK_048 — Расширить и синхронизировать шкалу итогов](../tasks/TASK_048_rasshirit_i_sinhronizirovat_shkalu_itogov/048_descr.md)
+- **Задача-основание:** [TASK_054 — Добавить группировку проектов и недельный дашборд вместимости](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_descr.md)
+- **Задача-основание:** [TASK_055 — Разделить изменение повторяющегося события на день и серию](../tasks/TASK_055_razdelit_izmenenie_povtoryayuschegosya_sobytiya_na_den_i_ser/055_descr.md)
+- **Задача-основание:** [TASK_056 — Сделать группы проектов компактными перетаскиваемыми плитками](../tasks/TASK_056_sdelat_gruppy_proektov_kompaktnymi_peretaskivaemymi_plitkami/056_descr.md)
 - **Связанная страница знаний:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [Карта кода планировщика](karta_koda_planirovschika.md)
 - **Связанная страница знаний:** [Матрица покрытия требований планировщика](matritsa_pokrytiya_trebovaniy_planirovschika.md)
 - **Связанная страница знаний:** [План поэтапной переработки планировщика](plan_refaktoringa_planirovschika.md)
 - **Связанная страница решения:** [DEC_002 — Навигация и поверхности интерфейса](../decisions/DECISION_002_navigatsiya_interfeysa.md)
+- **Связанная страница решения:** [DEC_007 — Общий порядок корневых проектов и групп](../decisions/DECISION_007_obschiy_poryadok_proektov_i_grupp.md)
 - **Связанное знание:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
 - **Страница-основание:** [DESIGN](../../DESIGN.md)
 <!-- AUTO:PAGE_LINKS:END -->

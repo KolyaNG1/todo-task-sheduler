@@ -2,7 +2,7 @@
 doc_type: knowledge
 title: "Матрица покрытия требований планировщика"
 status: active
-updated: 2026-09-22
+updated: 2026-09-26
 summary: "Сопоставление исходных и позднейших требований планировщика с текущей реализацией и проверяемыми пробелами."
 source_tasks: ["TASK_024", "TASK_007", "TASK_023"]
 source_pages: ["../../tz/01_biznes_trebovaniya.md", "../../tz/05_kriterii_priemki_i_etapy.md", "../../DESIGN.md", "../../BACKEND_DESIGN.md", "../../frontend/app.js", "../../backend/src/planner/application/services.py"]

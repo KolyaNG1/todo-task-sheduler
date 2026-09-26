@@ -8,7 +8,7 @@ title: "Подготовить описание базы данных для у�
 slug: "podgotovit_opisanie_bazy_dannyh_dlya_uchebnoy_zayavki"
 status: done
 created: 2026-09-14
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: null
 depends_on: []
 related_tasks: ["TASK_025"]

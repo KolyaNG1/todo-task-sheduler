@@ -2,9 +2,9 @@
 doc_type: knowledge
 title: "Архитектура и предметная модель планировщика недели"
 status: active
-updated: 2026-09-22
+updated: 2026-09-26
 summary: "Каноническая модель личного недельного планировщика с доступным временем, задачами, размещением и фактическими сессиями."
-source_tasks: ["TASK_001", "TASK_003", "TASK_014", "TASK_015", "TASK_016", "TASK_017", "TASK_018", "TASK_019", "TASK_022", "TASK_023", "TASK_049", "TASK_050"]
+source_tasks: ["TASK_001", "TASK_003", "TASK_014", "TASK_015", "TASK_016", "TASK_017", "TASK_018", "TASK_019", "TASK_022", "TASK_023", "TASK_049", "TASK_050", "TASK_053", "TASK_054", "TASK_055"]
 source_pages: ["../../tz/README.md"]
 related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_bekenda.md"]
 ---
@@ -42,6 +42,9 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
   из выбранного проекта, но остаётся доступен для личной задачи без проекта.
 - **Подтверждено:** панель проекта показывает прогресс и ближайший активный срок;
   срок менее чем через 24 часа выделяется оранжевым, просрочка — красным.
+- **Подтверждено:** проекты имеют сохраняемый порядок и могут входить ровно в
+  одну одноуровневую визуальную группу. Расформирование группы не архивирует и
+  не удаляет проекты.
 - **Подтверждено:** дневной индикатор показывает три независимые метрики:
   фактически отработанное время по задачам относительно запланированных блоков,
   заполненность рабочего времени задачами и число завершённых задач.
@@ -60,6 +63,12 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
   и соответствующие задачи с оставшейся оценкой. Недельная нагрузка вычитает
   уже подтверждённые минуты и сравнивается со свободным временем от текущего
   момента до сроков.
+- **Подтверждено:** расписание и обзор вместимости являются двумя представлениями
+  одного недельного снимка. Поэтому изменение рабочего времени, занятых блоков,
+  задач или выбранной недели пересчитывает оба экрана согласованно.
+- **Подтверждено:** динамика дневного ритма в «Итогах» использует 14 календарных
+  позиций: девять дней до опорной даты, саму дату и четыре будущих позиции.
+  Будущие позиции не входят в линию и средние показатели.
 
 ## Принятые положения
 
@@ -116,9 +125,17 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
 
 ## Источники и происхождение
 
+- **Подтверждено:** еженедельное фиксированное событие имеет одно правило
+  серии и ноль или более исключений на локальную дату. Исключение может менять
+  время, название и цвет либо отменять появление только в эту дату. Планирование
+  и свободное время вычисляются по итоговому событию для конкретного дня.
+  Проверка — [TASK_055](../tasks/TASK_055_razdelit_izmenenie_povtoryayuschegosya_sobytiya_na_den_i_ser/055_concl.md).
+
 - [TASK_001 — подготовка ТЗ](../tasks/TASK_001_podgotovit_tz_prilozheniya_planirovschika_nedeli/001_descr.md)
 - [TASK_049 — преобразование направлений в проекты](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_concl.md)
 - [TASK_050 — недельные дедлайны и граница автоплана](../tasks/TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_concl.md)
+- [TASK_053 — 14-дневная динамика в итогах](../tasks/TASK_053_dobavit_14_dnevnuyu_dinamiku_i_srednie_pokazateli_v_itogi/053_concl.md)
+- [TASK_054 — группы проектов и недельная вместимость](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_concl.md)
 - [Комплект ТЗ](../../tz/README.md)
 - [Критерии приёмки](../../tz/05_kriterii_priemki_i_etapy.md)
 
@@ -137,12 +154,16 @@ related_knowledge: ["informatsionnaya_arkhitektura_interfeysa.md", "arhitektura_
 - **Задача-основание:** [TASK_023 — Исправить немедленное отображение блоков автоплана](../tasks/TASK_023_ispravit_nemedlennoe_otobrazhenie_blokov_avtoplana/023_descr.md)
 - **Задача-основание:** [TASK_049 — Преобразовать направления в проекты](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_descr.md)
 - **Задача-основание:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../tasks/TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
+- **Задача-основание:** [TASK_053 — Добавить 14-дневную динамику и средние показатели в Итоги](../tasks/TASK_053_dobavit_14_dnevnuyu_dinamiku_i_srednie_pokazateli_v_itogi/053_descr.md)
+- **Задача-основание:** [TASK_054 — Добавить группировку проектов и недельный дашборд вместимости](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_descr.md)
+- **Задача-основание:** [TASK_055 — Разделить изменение повторяющегося события на день и серию](../tasks/TASK_055_razdelit_izmenenie_povtoryayuschegosya_sobytiya_na_den_i_ser/055_descr.md)
 - **Связанная страница знаний:** [Архитектура бэкенда планировщика](arhitektura_bekenda.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [База данных многопользовательского планировщика](baza_dannyh_planirovschika.md)
 - **Связанная страница знаний:** [Информационная архитектура интерфейса планировщика](informatsionnaya_arkhitektura_interfeysa.md)
 - **Связанная страница знаний:** [Матрица покрытия требований планировщика](matritsa_pokrytiya_trebovaniy_planirovschika.md)
 - **Связанная страница решения:** [DEC_001 — Базовая архитектура планировщика](../decisions/DECISION_001_architektura_planirovschika.md)
+- **Связанная страница решения:** [DEC_006 — Исключения повторяющихся событий по локальной дате](../decisions/DECISION_006_isklyucheniya_povtoryayuschihsya_sobytiy.md)
 - **Связанное знание:** [Архитектура бэкенда планировщика](arhitektura_bekenda.md)
 - **Связанное знание:** [Информационная архитектура интерфейса планировщика](informatsionnaya_arkhitektura_interfeysa.md)
 - **Страница-основание:** [README](../../tz/README.md)

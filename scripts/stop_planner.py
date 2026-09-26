@@ -37,6 +37,14 @@ def main() -> int:
     deadline = time.monotonic() + 5
     while listening_processes(ports) and time.monotonic() < deadline:
         time.sleep(0.1)
+    remaining = listening_processes(ports)
+    if remaining:
+        print(
+            "Не удалось остановить прежний экземпляр планировщика "
+            f"(процессы: {', '.join(map(str, sorted(remaining)))}).",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

@@ -52,6 +52,7 @@ class Workspace(IdentityMixin, Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     state: Mapped["WorkspaceState"] = relationship(back_populates="workspace", uselist=False, cascade="all, delete-orphan")
     directions: Mapped[list["Direction"]] = relationship(back_populates="workspace")
+    project_groups: Mapped[list["ProjectGroup"]] = relationship(back_populates="workspace", cascade="all, delete-orphan")
     __table_args__ = (
         CheckConstraint("grid_step_minutes > 0", name="ck_workspace_grid_step_positive"),
         CheckConstraint("visible_day_start >= 0 AND visible_day_end <= 1440 AND visible_day_end > visible_day_start", name="ck_workspace_visible_hours"),
@@ -76,6 +77,21 @@ class WorkspaceState(IdentityMixin, Base):
     workspace: Mapped[Workspace] = relationship(back_populates="state")
 
 
+class ProjectGroup(IdentityMixin, Base):
+    __tablename__ = "project_groups"
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    color: Mapped[str] = mapped_column(String(9), default="#356AE6", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_collapsed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    workspace: Mapped[Workspace] = relationship(back_populates="project_groups")
+    projects: Mapped[list["Direction"]] = relationship(back_populates="group")
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "name", name="uq_project_group_workspace_name"),
+        Index("ix_project_groups_workspace_position", "workspace_id", "position"),
+    )
+
+
 class Direction(IdentityMixin, Base):
     __tablename__ = "directions"
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
@@ -85,14 +101,18 @@ class Direction(IdentityMixin, Base):
     default_priority: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     default_estimate_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     default_deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    group_id: Mapped[str | None] = mapped_column(ForeignKey("project_groups.id", ondelete="SET NULL"), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     workspace: Mapped[Workspace] = relationship(back_populates="directions")
+    group: Mapped[ProjectGroup | None] = relationship(back_populates="projects")
     labels: Mapped[list["Label"]] = relationship(back_populates="direction")
     tasks: Mapped[list["Task"]] = relationship(back_populates="direction")
     __table_args__ = (
         UniqueConstraint("workspace_id", "name", name="uq_direction_workspace_name"),
         CheckConstraint("default_priority IN (1, 2, 3, 5, 8, 13, 21)", name="ck_direction_priority"),
+        Index("ix_directions_group_position", "workspace_id", "group_id", "position"),
     )
 
 
@@ -252,6 +272,21 @@ class FixedEventRule(IdentityMixin, Base):
         CheckConstraint("weekday IS NULL OR weekday BETWEEN 0 AND 6", name="ck_fixed_event_weekday"),
         CheckConstraint("start_minute BETWEEN 0 AND 1439 AND end_minute BETWEEN 1 AND 1440 AND end_minute > start_minute", name="ck_fixed_event_range"),
         Index("ix_fixed_event_workspace_date", "workspace_id", "local_date"),
+    )
+
+
+class FixedEventOccurrence(IdentityMixin, Base):
+    __tablename__ = "fixed_event_occurrences"
+    rule_id: Mapped[str] = mapped_column(ForeignKey("fixed_event_rules.id", ondelete="CASCADE"), nullable=False)
+    local_date: Mapped[date] = mapped_column(Date, nullable=False)
+    is_cancelled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    title: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(9), nullable=True)
+    start_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    end_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    __table_args__ = (
+        UniqueConstraint("rule_id", "local_date", name="uq_fixed_event_occurrence_date"),
+        Index("ix_fixed_event_occurrences_date", "local_date"),
     )
 
 

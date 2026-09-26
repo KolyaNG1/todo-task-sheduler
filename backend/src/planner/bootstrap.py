@@ -23,35 +23,46 @@ class Container:
 
     def initialize(self) -> None:
         self.artifacts.ensure()
+        with self.engine.connect() as connection:
+            existing_tables = {row[0] for row in connection.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "fixed_event_rules" in existing_tables and "fixed_event_occurrences" not in existing_tables:
+            self.artifacts.backup_database(reason="before-schema-0009")
         Base.metadata.create_all(self.engine)
         self._apply_compatibility_migrations()
         self._normalize_legacy_datetimes()
         with self.session_factory.begin() as session:
             PlannerService(session).initialize_workspace()
-        self.artifacts.write_manifest(application_version="0.4.0", schema_revision="0007", extra={"utc_normalized_at": datetime.now(UTC).isoformat()})
+        self.artifacts.write_manifest(application_version="0.5.1", schema_revision="0009", extra={"utc_normalized_at": datetime.now(UTC).isoformat()})
 
     def _apply_compatibility_migrations(self) -> None:
         """Дополняет локальную SQLite обратно совместимо и с резервной копией."""
         required_columns = {
+            "directions": {"group_id", "position"},
             "tasks": {"repeat_rule", "color", "goal_id", "goal_position", "parent_task_id", "child_position", "is_checkpoint"},
             "schedule_blocks": {"planner_run_id", "planner_proposal_id", "completed_at", "skipped_at"},
             "work_sessions": {"direction_id"},
         }
         with self.engine.connect() as connection:
             existing_tables = {row[0] for row in connection.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'")}
-            missing = "goals" not in existing_tables
+            missing = "goals" not in existing_tables or "project_groups" not in existing_tables or "fixed_event_occurrences" not in existing_tables
             for table, columns in required_columns.items():
                 if table in existing_tables:
                     actual = {row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")}
                     missing = missing or not columns.issubset(actual)
         if missing:
-            self.artifacts.backup_database(reason="before-schema-0006")
+            self.artifacts.backup_database(reason="before-schema-0009")
         with self.engine.begin() as connection:
             # Новые таблицы create_all добавляет на чистой базе. Для старой базы
             # создаём их явно, а недостающие столбцы добавляем без удаления строк.
             Base.metadata.tables["goals"].create(connection, checkfirst=True)
             Base.metadata.tables["daily_metric_snapshots"].create(connection, checkfirst=True)
+            Base.metadata.tables["project_groups"].create(connection, checkfirst=True)
+            Base.metadata.tables["fixed_event_occurrences"].create(connection, checkfirst=True)
             definitions = {
+                "directions": {
+                    "group_id": "VARCHAR(36)",
+                    "position": "INTEGER NOT NULL DEFAULT 0",
+                },
                 "tasks": {
                     "repeat_rule": "VARCHAR(16) NOT NULL DEFAULT 'NONE'",
                     "color": "VARCHAR(9)",
@@ -75,6 +86,7 @@ class Container:
                     if name not in actual:
                         connection.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
             connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_tasks_parent_position ON tasks (parent_task_id, child_position)")
+            connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_directions_group_position ON directions (workspace_id, group_id, position)")
 
     def _normalize_legacy_datetimes(self) -> None:
         """Один раз переводит старые наивные локальные даты в UTC.

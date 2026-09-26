@@ -2,9 +2,9 @@
 doc_type: knowledge
 title: "Архитектура бэкенда планировщика"
 status: active
-updated: 2026-09-22
+updated: 2026-09-26
 summary: "Клиентонезависимый прикладной слой, нормализованная SQLite и переносимый каталог артефактов поддерживают календарь, жизненный цикл задач, фактическое время и вычисляемые итоги."
-source_tasks: ["TASK_003", "TASK_005", "TASK_007", "TASK_008", "TASK_010", "TASK_011", "TASK_027", "TASK_028", "TASK_029", "TASK_031", "TASK_033", "TASK_034", "TASK_037", "TASK_038", "TASK_040", "TASK_045", "TASK_046"]
+source_tasks: ["TASK_003", "TASK_005", "TASK_007", "TASK_008", "TASK_010", "TASK_011", "TASK_027", "TASK_028", "TASK_029", "TASK_031", "TASK_033", "TASK_034", "TASK_037", "TASK_038", "TASK_040", "TASK_045", "TASK_046", "TASK_054", "TASK_055", "TASK_056"]
 source_pages: ["../../BACKEND_DESIGN.md", "../../IMPLEMENTATION_PLAN.md", "../../backend/README.md", "../../artifacts/README.md"]
 related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
 ---
@@ -29,7 +29,7 @@ related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
 - **Подтверждено:** первый серверный срез находится в `backend/` и запускает
   FastAPI с версионированным префиксом `/api/v1`.
 - **Подтверждено:** база создаётся из SQLAlchemy-моделей и начальной миграции
-  Alembic; проверка миграции создала 22 таблицы, включая рабочие области,
+  Alembic; проверка действующей локальной схемы показала 25 таблиц, включая рабочие области,
   задачи, блоки расписания и рабочие сессии.
 - **Подтверждено:** реализован сквозной сценарий: направление и ярлык → задача
   → доступное время и неподвижное событие → ручной блок → предварительный
@@ -45,6 +45,10 @@ related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
 - **Подтверждено:** направления, теги и неподвижные события имеют операции
   изменения и архивирования; правило повторения задачи хранится отдельно от
   повторяющегося неподвижного расписания.
+- **Подтверждено:** визуальные группы проектов хранятся отдельной сущностью, а
+  проект содержит необязательную ссылку на группу и позицию. Полная раскладка
+  проверяется и заменяется одной транзакцией, поэтому частичное перемещение не
+  сохраняется.
 - **Подтверждено:** задача может быть родителем произвольного числа пунктов;
   её положение в дереве хранит `parent_task_id`, а возможность работать с ней
   как с чекпоинтом — отдельное поле `is_checkpoint`. В блоки и автоплан
@@ -111,7 +115,8 @@ related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
   интерфейс на 3000, не создаёт окружение и не устанавливает библиотеки. Порт
   5173 исключён, поскольку входит в зарезервированный Windows диапазон. Перед
   открытием страницы сценарий проверяет доступность обеих частей и не создаёт
-  дубликаты уже работающих серверов.
+  дубликаты уже работающих серверов. Если старые слушатели портов не удалось
+  остановить, запуск прекращается с ошибкой вместо открытия устаревшего сервера.
 - **Решение:** использовать единицу работы, оптимистичные версии, ключ повтора
   запроса и таблицу исходящих событий.
 - **Решение:** поля, по которым выполняются поиск и фильтрация, хранить в обычных
@@ -162,6 +167,7 @@ related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
 - [TASK_003](../tasks/TASK_003_sproektirovat_sistemnuyu_arhitekturu_bekenda/003_descr.md)
 - [TASK_005](../tasks/TASK_005_realizovat_servernuyu_chast_planirovschika/005_descr.md)
 - [TASK_007](../tasks/TASK_007_dovesti_pervyy_reliz_planirovschika_do_tselnogo_prilozheniya/007_descr.md)
+- [TASK_054 — группы проектов и недельная вместимость](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_concl.md)
 - [Технические требования](../../tz/03_tehnicheskie_trebovaniya.md)
 
 ## Автоматические связи
@@ -184,11 +190,15 @@ related_knowledge: ["planirovschik_nedeli.md", "baza_dannyh_planirovschika.md"]
 - **Задача-основание:** [TASK_040 — Диагностировать и исправить штатный запуск планировщика](../tasks/TASK_040_diagnostirovat_i_ispravit_shtatnyy_zapusk_planirovschika/040_descr.md)
 - **Задача-основание:** [TASK_045 — Подготовить описание базы данных для учебной заявки](../tasks/TASK_045_podgotovit_opisanie_bazy_dannyh_dlya_uchebnoy_zayavki/045_descr.md)
 - **Задача-основание:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
+- **Задача-основание:** [TASK_054 — Добавить группировку проектов и недельный дашборд вместимости](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_descr.md)
+- **Задача-основание:** [TASK_055 — Разделить изменение повторяющегося события на день и серию](../tasks/TASK_055_razdelit_izmenenie_povtoryayuschegosya_sobytiya_na_den_i_ser/055_descr.md)
+- **Задача-основание:** [TASK_056 — Сделать группы проектов компактными перетаскиваемыми плитками](../tasks/TASK_056_sdelat_gruppy_proektov_kompaktnymi_peretaskivaemymi_plitkami/056_descr.md)
 - **Связанная страница знаний:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)
 - **Связанная страница знаний:** [Аудит качества и масштабируемости планировщика](audit_kachestva_i_masshtabiruemosti_planirovschika.md)
 - **Связанная страница знаний:** [База данных многопользовательского планировщика](baza_dannyh_planirovschika.md)
 - **Связанная страница знаний:** [Карта кода планировщика](karta_koda_planirovschika.md)
 - **Связанная страница знаний:** [План поэтапной переработки планировщика](plan_refaktoringa_planirovschika.md)
+- **Связанная страница знаний:** [Синхронизация планировщика с Google Календарём](sinhronizatsiya_s_google_kalendarem.md)
 - **Связанная страница решения:** [DEC_003 — Клиентонезависимый бэкенд и переносимые артефакты](../decisions/DECISION_003_bekend_i_artefakty.md)
 - **Связанная страница решения:** [DEC_005 — Дерево задач и единый источник фактического времени](../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Связанное знание:** [Архитектура и предметная модель планировщика недели](planirovschik_nedeli.md)

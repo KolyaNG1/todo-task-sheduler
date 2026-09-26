@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
-from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, project_view, session_view, session_view_between, task_collection_view, task_detail_view, task_view
+from planner.api.presenters import block_view, direction_view, goal_detail_view, goal_view, planner_run_view, project_group_view, project_view, session_view, session_view_between, task_collection_view, task_detail_view, task_view
 from planner.api.schemas import (
     AvailabilityProfileReplace,
     CompletionRequest,
@@ -14,6 +14,7 @@ from planner.api.schemas import (
     DirectionCreate,
     DirectionUpdate,
     FixedEventCreate,
+    FixedEventOccurrenceUpdate,
     FixedEventUpdate,
     GoalCreate,
     GoalTasksReplace,
@@ -24,6 +25,9 @@ from planner.api.schemas import (
     PlannerApply,
     PlannerRunCreate,
     ProjectCreate,
+    ProjectGroupCreate,
+    ProjectGroupUpdate,
+    ProjectLayoutReplace,
     ProjectUpdate,
     ScheduleBlockCreate,
     SessionStart,
@@ -77,7 +81,7 @@ def startup(workspace_id: str, week_start: date, days: int = 7, service: Planner
     profile = service.default_availability(context)
     tasks = service.list_tasks(context, include_completed=True)
     projects = [project_view(item, now=service.now) for item in service.list_projects(context)]
-    return {"week": week_response(week), "active_session": session_view(service.active_session(context), now=service.now), "projects": projects, "directions": projects, "tasks": task_collection_view(tasks, now=service.now), "default_availability": [{"weekday": slot.weekday, "start_minute": slot.start_minute, "end_minute": slot.end_minute} for slot in profile.slots] if profile else []}
+    return {"week": week_response(week), "active_session": session_view(service.active_session(context), now=service.now), "projects": projects, "project_groups": [project_group_view(item) for item in service.list_project_groups(context)], "directions": projects, "tasks": task_collection_view(tasks, now=service.now), "default_availability": [{"weekday": slot.weekday, "start_minute": slot.start_minute, "end_minute": slot.end_minute} for slot in profile.slots] if profile else []}
 
 
 @router.get("/workspaces/{workspace_id}/projects")
@@ -92,6 +96,37 @@ def create_project(workspace_id: str, body: ProjectCreate, service: PlannerServi
     service.session.flush()
     service.session.refresh(item, attribute_names=["tasks"])
     return project_view(item, now=service.now)
+
+
+@router.get("/workspaces/{workspace_id}/project-groups")
+def list_project_groups(workspace_id: str, service: PlannerService = Depends(get_service)) -> list[dict]:
+    return [project_group_view(item) for item in service.list_project_groups(context_for(service, workspace_id))]
+
+
+@router.post("/workspaces/{workspace_id}/project-groups", status_code=status.HTTP_201_CREATED)
+def create_project_group(workspace_id: str, body: ProjectGroupCreate, service: PlannerService = Depends(get_service)) -> dict:
+    item = service.create_project_group(context_for(service, workspace_id), **body.model_dump())
+    service.session.flush()
+    return project_group_view(service.get_project_group(context_for(service, workspace_id), item.id))
+
+
+@router.patch("/workspaces/{workspace_id}/project-groups/{group_id}")
+def update_project_group(workspace_id: str, group_id: str, body: ProjectGroupUpdate, service: PlannerService = Depends(get_service)) -> dict:
+    item = service.update_project_group(context_for(service, workspace_id), group_id, body.model_dump(exclude_unset=True))
+    service.session.flush()
+    return project_group_view(service.get_project_group(context_for(service, workspace_id), item.id))
+
+
+@router.delete("/workspaces/{workspace_id}/project-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_group(workspace_id: str, group_id: str, service: PlannerService = Depends(get_service)) -> Response:
+    service.delete_project_group(context_for(service, workspace_id), group_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/workspaces/{workspace_id}/project-layout", status_code=status.HTTP_204_NO_CONTENT)
+def replace_project_layout(workspace_id: str, body: ProjectLayoutReplace, service: PlannerService = Depends(get_service)) -> Response:
+    service.replace_project_layout(context_for(service, workspace_id), **body.model_dump())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/workspaces/{workspace_id}/projects/{project_id}")
@@ -348,6 +383,18 @@ def update_fixed_event(workspace_id: str, event_id: str, body: FixedEventUpdate,
 @router.delete("/workspaces/{workspace_id}/fixed-events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def archive_fixed_event(workspace_id: str, event_id: str, service: PlannerService = Depends(get_service)) -> Response:
     service.archive_fixed_event(context_for(service, workspace_id), event_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/workspaces/{workspace_id}/fixed-events/{event_id}/occurrences/{local_date}")
+def update_fixed_event_occurrence(workspace_id: str, event_id: str, local_date: date, body: FixedEventOccurrenceUpdate, service: PlannerService = Depends(get_service)) -> dict:
+    item = service.update_fixed_event_occurrence(context_for(service, workspace_id), event_id, local_date, **body.model_dump())
+    return {"id": event_id, "local_date": item.local_date.isoformat(), "title": item.title, "start_minute": item.start_minute, "end_minute": item.end_minute, "color": item.color}
+
+
+@router.delete("/workspaces/{workspace_id}/fixed-events/{event_id}/occurrences/{local_date}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_fixed_event_occurrence(workspace_id: str, event_id: str, local_date: date, service: PlannerService = Depends(get_service)) -> Response:
+    service.cancel_fixed_event_occurrence(context_for(service, workspace_id), event_id, local_date)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

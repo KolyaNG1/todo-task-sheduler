@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from planner.infrastructure.models import Direction, Goal, PlannerProposal, PlannerRun, ScheduleBlock, Task, WorkSession
+from planner.infrastructure.models import Direction, Goal, PlannerProposal, PlannerRun, ProjectGroup, ScheduleBlock, Task, WorkSession
 from planner.application.services import stored_utc
 
 
@@ -11,7 +11,19 @@ def iso(value: datetime | None) -> str | None:
 
 
 def direction_view(item: Direction) -> dict:
-    return {"id": item.id, "name": item.name, "kind": item.kind, "color": item.color, "default_priority": item.default_priority, "default_estimate_minutes": item.default_estimate_minutes, "default_deadline_at": iso(item.default_deadline_at), "is_archived": item.is_archived, "version": item.version}
+    return {"id": item.id, "name": item.name, "kind": item.kind, "color": item.color, "default_priority": item.default_priority, "default_estimate_minutes": item.default_estimate_minutes, "default_deadline_at": iso(item.default_deadline_at), "group_id": item.group_id, "position": item.position, "is_archived": item.is_archived, "version": item.version}
+
+
+def project_group_view(item: ProjectGroup) -> dict:
+    active_projects = [project for project in item.projects if not project.is_archived]
+    return {
+        "id": item.id,
+        "name": item.name,
+        "color": item.color,
+        "position": item.position,
+        "is_collapsed": item.is_collapsed,
+        "project_count": len(active_projects),
+    }
 
 
 def task_progress_map(tasks: list[Task]) -> tuple[dict[str, dict[str, int]], dict[str, int]]:

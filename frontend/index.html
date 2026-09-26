@@ -6,7 +6,7 @@
     <meta name="description" content="Личный планировщик недели" />
     <title>Планировщик недели</title>
     <link rel="icon" type="image/png" href="assets/palm-avatar.png?v=1" />
-    <link rel="stylesheet" href="styles.css?v=20260921-3" />
+    <link rel="stylesheet" href="styles.css?v=20260926-3" />
   </head>
   <body>
     <div class="app-shell">
@@ -75,6 +75,10 @@
             <button class="icon-button" id="next-week" aria-label="Следующая неделя">›</button>
           </div>
           <button class="session-restore" id="session-restore" hidden>Показать рабочую сессию</button>
+          <div class="plan-view-switch" role="tablist" aria-label="Вид главной страницы">
+            <button class="active" id="show-schedule-view" role="tab" aria-selected="true">Расписание</button>
+            <button id="show-capacity-view" role="tab" aria-selected="false">Обзор недели</button>
+          </div>
           <div class="toolbar-actions">
             <div class="capacity deadline-capacity"><span>ДЕДЛАЙНЫ НЕДЕЛИ</span><strong id="week-deadline-load">—</strong><small id="week-deadline-balance">—</small></div>
             <div class="capacity"><span>СВОБОДНО</span><strong id="week-capacity">—</strong></div>
@@ -92,6 +96,8 @@
           <section class="daily-success" id="daily-success" aria-live="polite" hidden></section>
           <section class="goal-strip" id="goal-strip" aria-label="Активные цели" hidden></section>
         </div>
+
+        <section class="week-dashboard" id="week-dashboard" aria-label="Дедлайны и вместимость недели" hidden></section>
 
         <section class="week-board" aria-label="Недельное расписание">
           <div class="time-axis" id="time-axis"></div>
@@ -121,6 +127,6 @@
       </form>
     </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" id="toast-close" aria-label="Закрыть уведомление">×</button></div>
-    <script type="module" src="app.js?v=20260921-3"></script>
+    <script type="module" src="app.js?v=20260926-3"></script>
   </body>
 </html>

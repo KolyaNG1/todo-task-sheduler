@@ -8,7 +8,7 @@ title: "Расширить недельные дедлайны и огранич
 slug: "rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash"
 status: done
 created: 2026-09-21
-updated: 2026-09-22
+updated: 2026-09-26
 parent_task: "TASK_025"
 depends_on: []
 related_tasks: ["TASK_016", "TASK_017", "TASK_046"]
@@ -114,6 +114,7 @@ root_record: null
 - **Связанная задача:** [TASK_016 — Исправить наследование задач и добавить дневной индикатор прогресса](../TASK_016_ispravit_nasledovanie_zadach_i_dobavit_dnevnoy_indikator_pro/016_descr.md)
 - **Связанная задача:** [TASK_017 — Добавить плавную навигацию по неделям](../TASK_017_dobavit_plavnuyu_navigatsiyu_po_nedelyam/017_descr.md)
 - **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
+- **Связанная задача:** [TASK_054 — Добавить группировку проектов и недельный дашборд вместимости](../TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_descr.md)
 - **Связанное решение:** [DEC_005 — Дерево задач и единый источник фактического времени](../../decisions/DECISION_005_derevo_zadach_i_istochnik_vremeni.md)
 - **Созданное или обновлённое знание:** [Архитектура и предметная модель планировщика недели](../../knowledge/planirovschik_nedeli.md)
 <!-- AUTO:PAGE_LINKS:END -->

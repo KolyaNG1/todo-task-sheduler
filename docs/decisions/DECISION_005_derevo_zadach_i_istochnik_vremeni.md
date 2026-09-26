@@ -4,9 +4,9 @@ decision_id: "DEC_005"
 title: "Дерево задач и единый источник фактического времени"
 status: accepted
 created: 2026-09-11
-updated: 2026-09-22
+updated: 2026-09-26
 summary: "Крупные задачи образуют упорядоченное дерево обычных задач; конечные и явно отмеченные промежуточные чекпоинты допускаются в календарь, а сессии и интервалы остаются единым источником фактического времени."
-related_tasks: ["TASK_027", "TASK_028", "TASK_029", "TASK_033", "TASK_034", "TASK_046", "TASK_049", "TASK_050"]
+related_tasks: ["TASK_027", "TASK_028", "TASK_029", "TASK_033", "TASK_034", "TASK_046", "TASK_049", "TASK_050", "TASK_053", "TASK_054"]
 related_knowledge: ["../knowledge/arhitektura_bekenda.md", "../knowledge/karta_koda_planirovschika.md"]
 source_pages: ["../../backend/src/planner/infrastructure/models.py", "../../backend/src/planner/application/services.py", "../../backend/src/planner/api/router.py", "../../backend/src/planner/api/presenters.py", "../../frontend/app.js"]
 supersedes: []
@@ -69,6 +69,17 @@ supersedes: []
 15. Изменение времени конкретного блока не является переносом дедлайна задачи.
     Совмещённый редактор отправляет эти изменения раздельно; время блока можно
     указывать с точностью до минуты.
+16. Обзор динамики использует окно из 14 календарных позиций: опорная дата
+    находится на десятой позиции, а четыре будущих места остаются справа.
+    Средние считаются только по доступным дням не позже опорной даты; будущие
+    позиции не считаются нулевыми результатами.
+17. Визуальная организация проектов хранится отдельно от дерева задач:
+    одноуровневая `ProjectGroup` задаёт контейнер, а `Direction.group_id` и
+    `Direction.position` — принадлежность и порядок. Полная раскладка заменяется
+    атомарно; расформирование группы не затрагивает проекты и задачи.
+18. Расписание и недельная вместимость являются двумя клиентскими
+    представлениями одного серверного недельного снимка. Отдельная копия
+    расчётов дедлайнов или доступного времени в браузере не создаётся.
 
 ## Последствия
 
@@ -92,6 +103,8 @@ supersedes: []
 - [TASK_046](../tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_concl.md)
 - [TASK_049](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_concl.md)
 - [TASK_050](../tasks/TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_concl.md)
+- [TASK_053](../tasks/TASK_053_dobavit_14_dnevnuyu_dinamiku_i_srednie_pokazateli_v_itogi/053_concl.md)
+- [TASK_054](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_concl.md)
 - [Архитектура бэкенда](../knowledge/arhitektura_bekenda.md)
 - [Карта кода](../knowledge/karta_koda_planirovschika.md)
 
@@ -106,6 +119,8 @@ supersedes: []
 - **Связанная задача:** [TASK_046 — Переработать иерархию задач и дневную историю метрик](../tasks/TASK_046_pererabotat_ierarhiyu_zadach_i_dnevnuyu_istoriyu_metrik/046_descr.md)
 - **Связанная задача:** [TASK_049 — Преобразовать направления в проекты](../tasks/TASK_049_preobrazovat_napravleniya_v_proekty/049_descr.md)
 - **Связанная задача:** [TASK_050 — Расширить недельные дедлайны и ограничить автоплан сегодняшним днём](../tasks/TASK_050_rasshirit_nedelnye_dedlayny_i_ogranichit_avtoplan_segodnyash/050_descr.md)
+- **Связанная задача:** [TASK_053 — Добавить 14-дневную динамику и средние показатели в Итоги](../tasks/TASK_053_dobavit_14_dnevnuyu_dinamiku_i_srednie_pokazateli_v_itogi/053_descr.md)
+- **Связанная задача:** [TASK_054 — Добавить группировку проектов и недельный дашборд вместимости](../tasks/TASK_054_dobavit_gruppirovku_proektov_i_nedelnyy_dashbord_vmestimosti/054_descr.md)
 - **Связанное знание:** [Архитектура бэкенда планировщика](../knowledge/arhitektura_bekenda.md)
 - **Связанное знание:** [Карта кода планировщика](../knowledge/karta_koda_planirovschika.md)
 <!-- AUTO:PAGE_LINKS:END -->
